@@ -814,7 +814,7 @@ const CONFIG = {
     INFLUENCE_RATE: 0.18, 
     INFLUENCE_RADIUS: 0.40, 
     UNIT_SPAWN_COUNT: 40, // Base count
-    MAX_UNITS_PER_SIDE: 400,
+    MAX_UNITS_PER_SIDE: 1200,
     UNIT_DENSITY_FACTOR: 0.018, // Increased unit density as requested
     HOI4_COLORS: {
         'Germany': '#6e6e6e',
@@ -875,123 +875,6 @@ const CONFIG = {
     FRONTLINE_COLOR: 'rgba(255, 255, 255, 0.75)'
 };
 
-// Realistic active military personnel per country (approximate, 2024 data)
-const REAL_MILITARY_SIZE = {
-    'China': 2035000,
-    'India': 1455000,
-    'United States of America': 1390000,
-    'United States': 1390000,
-    'North Korea': 1280000,
-    'Russia': 1150000,
-    'Pakistan': 654000,
-    'South Korea': 500000,
-    'Vietnam': 482000,
-    'Egypt': 440000,
-    'Iran': 610000,
-    'Myanmar': 406000,
-    'Indonesia': 396000,
-    'Thailand': 361000,
-    'Turkey': 355000,
-    'Brazil': 367000,
-    'Colombia': 295000,
-    'Mexico': 277000,
-    'Japan': 247000,
-    'Saudi Arabia': 257000,
-    'Sri Lanka': 255000,
-    'France': 205000,
-    'Germany': 181000,
-    'United Kingdom': 150000,
-    'Italy': 165000,
-    'Israel': 170000,
-    'Ukraine': 900000,
-    'Taiwan': 170000,
-    'Australia': 59000,
-    'Canada': 68000,
-    'Spain': 120000,
-    'Poland': 150000,
-    'Greece': 143000,
-    'Argentina': 75000,
-    'Chile': 80000,
-    'South Africa': 73000,
-    'Iraq': 193000,
-    'Syria': 170000,
-    'Algeria': 130000,
-    'Morocco': 196000,
-    'Nigeria': 223000,
-    'Ethiopia': 162000,
-    'Angola': 107000,
-    'Sudan': 104000,
-    'Sweden': 24000,
-    'Norway': 26000,
-    'Finland': 34000,
-    'Romania': 72000,
-    'Hungary': 28000,
-    'Netherlands': 42000,
-    'Belgium': 26000,
-    'Portugal': 28000,
-    'Czech Republic': 27000,
-    'Czechia': 27000,
-    'Austria': 16000,
-    'Switzerland': 21000,
-    'Denmark': 17000,
-    'Mongolia': 37000,
-    'Philippines': 150000,
-    'Malaysia': 113000,
-    'Singapore': 72000,
-    'Bangladesh': 204000,
-    'Nepal': 96000,
-    'Afghanistan': 150000,
-    'Cuba': 49000,
-    'Peru': 81000,
-    'Venezuela': 123000,
-    'Ecuador': 40000,
-    'Bolivia': 34000,
-    'Paraguay': 15000,
-    'Uruguay': 22000,
-    'New Zealand': 9600,
-    'Jordan': 101000,
-    'Lebanon': 72000,
-    'Libya': 30000,
-    'Tunisia': 36000,
-    'Kenya': 24000,
-    'Tanzania': 27000,
-    'Uganda': 45000,
-    'DR Congo': 134000,
-    'Democratic Republic of the Congo': 134000,
-    'Somalia': 20000,
-    'Yemen': 67000,
-    'Oman': 43000,
-    'UAE': 63000,
-    'United Arab Emirates': 63000,
-    'Kuwait': 17000,
-    'Qatar': 12000,
-    'Bahrain': 8200,
-    'Georgia': 21000,
-    'Armenia': 45000,
-    'Azerbaijan': 67000,
-    'Kazakhstan': 39000,
-    'Uzbekistan': 48000,
-    'Serbia': 28000,
-    'Croatia': 15000,
-    'Bulgaria': 37000,
-    'Slovakia': 16000,
-    'Lithuania': 23000,
-    'Latvia': 6500,
-    'Estonia': 7000,
-    'Ireland': 9000,
-    'Iceland': 0,
-};
-
-// Convert real military size to in-game unit count
-function getRealMilitaryUnits(countryName) {
-    const size = REAL_MILITARY_SIZE[countryName];
-    if (size === undefined) return null; // fallback to default calculation
-    // Scale: every 15000 soldiers = 1 unit (matches UNIT_TO_SOLDIER_RATIO)
-    // Cap between 3 and 40 units per country for performance
-    const ratio = CONFIG.UNIT_TO_SOLDIER_RATIO || 15000;
-    return Math.max(3, Math.min(40, Math.round(size / ratio)));
-}
-
 function getOptimizationFactor() {
     // More active sides => higher factor => more aggressive optimization
     const activeSides = sides.filter(s => s && s.length > 0).length || 1;
@@ -1030,7 +913,6 @@ let activeScenarioId = null;
 let ffaMode = false;
 let randomWarMode = false;
 let randomWarFocus = false;
-let zombieMode = false;
 let adjacencyCache = null;
 let teamAColor = 'rgba(255, 50, 50, 0.5)';
 let teamBColor = 'rgba(50, 100, 255, 0.5)';
@@ -1055,7 +937,6 @@ let capitalLostCountries = new Set();
 let bombs = [];
 let explosions = [];
 let bases = [];
-let aircraft = [];
 let cities = [];
 let activeTheaterCities = [];
 
@@ -1100,49 +981,6 @@ let disableCountryGradient = false;
 // When false, hiddenBuffState is ignored and only visible buffState is used.
 let invisibleBuffsEnabled = getCookie('mw_disable_invis_buffs') === 'true' ? false : true;
 let cityEditMode = null; // 'CREATE' | 'MOVE' | null
-// ========== GRAND STRATEGY STATE ==========
-let gsActive = false;
-let gsPlayerCountryId = -1;
-let gsWarActive = false;       // Is a GS war currently running?
-let gsEconomy = new Map();     // Map<countryId, {treasury, taxRate, income, gdpBase, rebellionRisk, conscripted, conscriptEnd, warWeariness, startCells}>
-let gsTruces = new Map();      // Map<"id1-id2", expiryYear>
-let gsAlliances = new Map();   // Map<countryId, Set<countryId>>
-let gsAITimer = 0;
-let gsTickCounter = 0;
-let gsMonthAccum = 0;
-let gsEventLog = [];
-let gsSelectingWarTarget = false;
-let gsSelectingAllyTarget = false;
-let gsRebelCountryId = -1;     // Rebel faction ID for active rebellion
-
-const GS_TAX_RATES = {
-    low:     { mult: 0.5,  rebellionRate: 0.0005, label: 'LOW' },
-    medium:  { mult: 1.0,  rebellionRate: 0.002,  label: 'MEDIUM' },
-    high:    { mult: 1.8,  rebellionRate: 0.008,  label: 'HIGH' },
-    extreme: { mult: 2.5,  rebellionRate: 0.02,   label: 'EXTREME' }
-};
-
-const GS_COSTS = {
-    troops1k:  100,
-    troops10k: 900,
-    silo:      2000,
-    airport:   1500,
-    jet:       500,
-    conscription: 300
-};
-
-const GS_GDP_MULTIPLIERS = {
-    'United States': 5, 'China': 4, 'Germany': 3, 'Japan': 4, 'United Kingdom': 3,
-    'France': 3, 'India': 2.5, 'Brazil': 2, 'Russia': 2.5, 'Canada': 2.5,
-    'Australia': 2.5, 'South Korea': 3, 'Italy': 2.5, 'Spain': 2, 'Mexico': 1.5,
-    'Saudi Arabia': 3, 'Turkey': 2, 'Netherlands': 3, 'Switzerland': 4, 'Sweden': 3,
-    'Norway': 3, 'Israel': 3, 'Singapore': 4, 'Taiwan': 3, 'Poland': 2,
-    'Argentina': 1.5, 'Indonesia': 1.5, 'Egypt': 1.2, 'Pakistan': 1, 'Nigeria': 1,
-    'Iran': 1.5, 'Thailand': 1.5, 'Vietnam': 1.2, 'Malaysia': 2, 'Philippines': 1.2,
-    'Colombia': 1.5, 'Chile': 2, 'South Africa': 1.5, 'Ukraine': 1.2, 'Iraq': 1.2,
-};
-// ========== END GRAND STRATEGY STATE ==========
-
 let animationFrameId = null;
 let backgroundTickId = null;
 let simFrameCount = 0;
@@ -2921,7 +2759,7 @@ const ControlMapLayer = L.Layer.extend({
         if (isWar) {
             ctx.strokeStyle = CONFIG.FRONTLINE_COLOR;
             // Soft white glow effect
-            ctx.shadowBlur = 0;
+            ctx.shadowBlur = 8;
             ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
             
             // Adaptive line width: Thinner at distance to prevent "blobby" lines
@@ -3257,221 +3095,6 @@ const ControlMapLayer = L.Layer.extend({
             ctx.restore();
         });
 
-        // Draw Aircraft - Viewport Culled
-        aircraft.forEach(ac => {
-            if (isNaN(ac.lat) || isNaN(ac.lng) || !drawBounds.contains([ac.lat, ac.lng])) return;
-            let p;
-            try {
-                p = map.latLngToContainerPoint([ac.lat, ac.lng]);
-            } catch(e) { return; }
-            const zoomScale = Math.pow(1.2, map.getZoom() - 3);
-            const teamColor = ac.team === 'A' ? (teamAColor.replace(/[\d.]+\)$/g, '1)')) : (teamBColor.replace(/[\d.]+\)$/g, '1)'));
-
-            // Compute heading angle from movement
-            let angle = ac.heading || 0;
-            if (ac.prevLat !== undefined && ac.prevLng !== undefined) {
-                const dx = ac.lng - ac.prevLng;
-                const dy = -(ac.lat - ac.prevLat); // screen Y is inverted
-                if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
-                    angle = Math.atan2(dy, dx);
-                    ac.heading = angle;
-                }
-            }
-
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.rotate(angle);
-
-            if (ac.type === 'bomber') {
-                // Large bomber silhouette — fat fuselage, wide swept wings, tail
-                const s = 10 * zoomScale;
-                ctx.beginPath();
-                // Nose
-                ctx.moveTo(s * 1.2, 0);
-                // Right fuselage to wing root
-                ctx.lineTo(s * 0.3, s * 0.15);
-                // Right wing tip (swept back)
-                ctx.lineTo(-s * 0.2, s * 1.3);
-                // Wing trailing edge
-                ctx.lineTo(-s * 0.5, s * 1.1);
-                // Back to fuselage
-                ctx.lineTo(-s * 0.4, s * 0.15);
-                // Right tail fin
-                ctx.lineTo(-s * 1.0, s * 0.5);
-                ctx.lineTo(-s * 1.1, s * 0.35);
-                // Tail
-                ctx.lineTo(-s * 0.9, s * 0.1);
-                ctx.lineTo(-s * 0.9, -s * 0.1);
-                // Left tail fin
-                ctx.lineTo(-s * 1.1, -s * 0.35);
-                ctx.lineTo(-s * 1.0, -s * 0.5);
-                // Back to fuselage
-                ctx.lineTo(-s * 0.4, -s * 0.15);
-                // Left wing trailing edge
-                ctx.lineTo(-s * 0.5, -s * 1.1);
-                // Left wing tip
-                ctx.lineTo(-s * 0.2, -s * 1.3);
-                // Left fuselage
-                ctx.lineTo(s * 0.3, -s * 0.15);
-                ctx.closePath();
-                ctx.fillStyle = '#3a3a3a';
-                ctx.fill();
-                ctx.strokeStyle = teamColor;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-
-                // Team dot on fuselage
-                ctx.beginPath();
-                ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
-                ctx.fillStyle = teamColor;
-                ctx.fill();
-
-                // Shadow/glow underneath
-                ctx.beginPath();
-                ctx.ellipse(0, s * 0.05, s * 0.8, s * 0.15, 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0,0,0,0.15)';
-                ctx.fill();
-            } else if (ac.type === 'fighter') {
-                // Sleek fighter jet — pointed nose, delta wings, twin tail
-                const s = 7 * zoomScale;
-                ctx.beginPath();
-                // Sharp nose
-                ctx.moveTo(s * 1.4, 0);
-                // Right fuselage
-                ctx.lineTo(s * 0.4, s * 0.1);
-                // Right wing tip (delta)
-                ctx.lineTo(-s * 0.1, s * 1.1);
-                ctx.lineTo(-s * 0.4, s * 0.8);
-                // Back to fuselage
-                ctx.lineTo(-s * 0.3, s * 0.12);
-                // Right tail
-                ctx.lineTo(-s * 0.9, s * 0.4);
-                ctx.lineTo(-s * 1.0, s * 0.25);
-                ctx.lineTo(-s * 0.8, s * 0.08);
-                // Tail center
-                ctx.lineTo(-s * 0.8, -s * 0.08);
-                // Left tail
-                ctx.lineTo(-s * 1.0, -s * 0.25);
-                ctx.lineTo(-s * 0.9, -s * 0.4);
-                ctx.lineTo(-s * 0.3, -s * 0.12);
-                // Left wing
-                ctx.lineTo(-s * 0.4, -s * 0.8);
-                ctx.lineTo(-s * 0.1, -s * 1.1);
-                // Left fuselage
-                ctx.lineTo(s * 0.4, -s * 0.1);
-                ctx.closePath();
-                ctx.fillStyle = teamColor;
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 0.8;
-                ctx.stroke();
-
-                // Cockpit
-                ctx.beginPath();
-                ctx.ellipse(s * 0.5, 0, s * 0.25, s * 0.08, 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(200,230,255,0.7)';
-                ctx.fill();
-            } else if (ac.type === 'patrol') {
-                // Patrol plane — smaller prop-style with straight wings
-                const s = 6 * zoomScale;
-                ctx.beginPath();
-                // Nose
-                ctx.moveTo(s * 0.9, 0);
-                // Right fuselage
-                ctx.lineTo(s * 0.2, s * 0.1);
-                // Right wing (straight, wide)
-                ctx.lineTo(s * 0.1, s * 1.2);
-                ctx.lineTo(-s * 0.15, s * 1.15);
-                // Back to fuselage
-                ctx.lineTo(-s * 0.1, s * 0.1);
-                // Right tail
-                ctx.lineTo(-s * 0.6, s * 0.4);
-                ctx.lineTo(-s * 0.7, s * 0.25);
-                ctx.lineTo(-s * 0.6, s * 0.08);
-                ctx.lineTo(-s * 0.6, -s * 0.08);
-                // Left tail
-                ctx.lineTo(-s * 0.7, -s * 0.25);
-                ctx.lineTo(-s * 0.6, -s * 0.4);
-                ctx.lineTo(-s * 0.1, -s * 0.1);
-                // Left wing
-                ctx.lineTo(-s * 0.15, -s * 1.15);
-                ctx.lineTo(s * 0.1, -s * 1.2);
-                ctx.lineTo(s * 0.2, -s * 0.1);
-                ctx.closePath();
-                ctx.fillStyle = teamColor;
-                ctx.globalAlpha = 0.7;
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 0.6;
-                ctx.stroke();
-
-                // Air superiority ring
-                ctx.rotate(-angle); // undo rotation for circle
-                const ringRadius = ac.patrolRadius * (map.getZoom() * 8);
-                ctx.beginPath();
-                ctx.arc(0, 0, Math.min(ringRadius, 80), 0, Math.PI * 2);
-                ctx.strokeStyle = teamColor;
-                ctx.globalAlpha = 0.12;
-                ctx.lineWidth = 2;
-                ctx.setLineDash([4, 4]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.globalAlpha = 1.0;
-            }
-
-            ctx.restore();
-        });
-
-        // Draw Airports
-        bases.forEach(b => {
-            if (b.type !== 'airport') return;
-            if (!drawBounds.contains([b.lat, b.lng])) return;
-            let p;
-            try {
-                p = map.latLngToContainerPoint([b.lat, b.lng]);
-            } catch(e) { return; }
-            const zoomScale = Math.pow(1.2, map.getZoom() - 3);
-            const teamColor = b.team === 'A' ? '#ff4757' : '#2e86de';
-            const s = 6 * zoomScale;
-
-            ctx.save();
-            ctx.translate(p.x, p.y);
-
-            // Runway
-            ctx.fillStyle = '#555';
-            ctx.fillRect(-s * 1.2, -s * 0.15, s * 2.4, s * 0.3);
-            // Runway markings
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([s * 0.2, s * 0.15]);
-            ctx.beginPath();
-            ctx.moveTo(-s * 1.0, 0);
-            ctx.lineTo(s * 1.0, 0);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Control tower dot
-            ctx.beginPath();
-            ctx.arc(0, -s * 0.4, s * 0.25, 0, Math.PI * 2);
-            ctx.fillStyle = teamColor;
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Team ring
-            ctx.beginPath();
-            ctx.arc(0, 0, s * 0.9, 0, Math.PI * 2);
-            ctx.strokeStyle = teamColor;
-            ctx.globalAlpha = 0.3;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-
-            ctx.restore();
-        });
-
         // Calculate theater stats
         if (isWar && animationFrameId % 10 === 0) {
             let p1T = 0, p2T = 0;
@@ -3567,7 +3190,7 @@ const ControlMapLayer = L.Layer.extend({
             if (zoom >= 6) {
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 10px monospace';
-                ctx.shadowBlur = 0;
+                ctx.shadowBlur = 4;
                 ctx.shadowColor = 'black';
                 ctx.fillText(city.name, p.x + citySize + 2, p.y + 4);
                 ctx.shadowBlur = 0;
@@ -3708,7 +3331,7 @@ const ControlMapLayer = L.Layer.extend({
                         ctx.font = `${starSize}px serif`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
-                        ctx.shadowBlur = 0;
+                        ctx.shadowBlur = 6;
                         ctx.shadowColor = 'gold';
                         ctx.fillText('⭐', p.x, p.y - sh - 2);
                         ctx.restore();
@@ -3754,7 +3377,7 @@ const ControlMapLayer = L.Layer.extend({
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                ctx.shadowBlur = 0;
+                ctx.shadowBlur = 10;
                 ctx.shadowColor = 'rgba(255,255,255,0.4)';
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
@@ -4041,7 +3664,7 @@ const ControlMapLayer = L.Layer.extend({
         ctx.textBaseline = 'middle';
         
         // Background stroke for maximum legibility
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur = 8;
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.strokeStyle = 'black';
         ctx.lineWidth = 5;
@@ -4282,7 +3905,7 @@ const ControlMapLayer = L.Layer.extend({
         grad.addColorStop(0.2, color.replace(/[\d.]+\)$/g, '0.5)'));
         grad.addColorStop(1, color.replace(/[\d.]+\)$/g, '0.9)'));
         
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = 'rgba(0,0,0,0.6)';
 
         // Arrow Body (Quadratic curve)
@@ -4605,24 +4228,14 @@ function getControlValue(lat, lng) {
 function estimateUnitsForCountry(countryId) {
     if (!worldControlMap || !worldControlMap.length || !countryId) return 0;
 
-    const meta = countryMetadata[countryId - 1];
-    const multiplier = parseFloat(densitySlider.value) || 1.0;
-
-    // Use real military size if available
-    if (meta) {
-        const realUnits = getRealMilitaryUnits(meta.name);
-        if (realUnits !== null) {
-            return Math.round(realUnits * multiplier) * CONFIG.UNIT_TO_SOLDIER_RATIO;
-        }
-    }
-
-    // Fallback for countries not in the lookup table
+    // Count how many grid cells this country controls on the current map
     let cellCount = 0;
     for (let i = 0; i < worldControlMap.length; i++) {
         if (worldControlMap[i] === countryId) cellCount++;
     }
     if (cellCount === 0) return 0;
 
+    const multiplier = parseFloat(densitySlider.value) || 1.0;
     const sizeFactor = Math.max(1, cellCount / 1500);
     const densityScale = 1.0 / Math.pow(sizeFactor, 0.45);
 
@@ -4720,14 +4333,12 @@ function updateSidesUI() {
                         <option value="OFFENSE" ${country.role === 'OFFENSE' ? 'selected' : ''} title="OFF: Offensive main participant, pushes its own fronts.">OFF</option>
                         <option value="SUPPORT" ${country.role === 'SUPPORT' ? 'selected' : ''} title="SUP: Support nation; mostly sends troops to help allies instead of starting new invasions.">SUP</option>
                     </select>
-                    <select class="mini-select strategy-select" title="Per-country behavior: BAL = mixed; AGG = push hard; DEF = hold cores; BLZ = fast spearheads; URB = city road wars; MSL = missile supremacy; AIR = air superiority.">
+                    <select class="mini-select strategy-select" title="Per-country behavior: BAL = mixed; AGG = push hard; DEF = hold cores; BLZ = fast spearheads; URB = city road wars.">
                         <option value="BALANCED" ${country.strategy === 'BALANCED' ? 'selected' : ''} title="BAL: Balanced offense and defense along the whole front.">BAL</option>
                         <option value="AGGRESSIVE" ${country.strategy === 'AGGRESSIVE' ? 'selected' : ''} title="AGG: Very aggressive, tries to push hard even when risky.">AGG</option>
                         <option value="DEFENSIVE" ${country.strategy === 'DEFENSIVE' ? 'selected' : ''} title="DEF: Focuses on defending own cores and reclaiming lost land.">DEF</option>
                         <option value="BLITZ" ${country.strategy === 'BLITZ' ? 'selected' : ''} title="BLZ: Blitz-style spearheads that seek breakthroughs and deep pushes.">BLZ</option>
                         <option value="URBAN" ${country.strategy === 'URBAN' ? 'selected' : ''} title="URB: Urban warfare; pushes along roads into cities in thin invasion lines.">URB</option>
-                        <option value="MISSILE" ${country.strategy === 'MISSILE' ? 'selected' : ''} title="MSL: Missile supremacy doctrine — massive long-range strikes soften the enemy while ground forces hold defensively. USA-style shock & awe.">MSL</option>
-                        <option value="AIR" ${country.strategy === 'AIR' ? 'selected' : ''} title="AIR: Air superiority doctrine — 3x airports, high aircraft spawn rate, defensive ground troops.">AIR</option>
                     </select>
                     <button class="clear-slot-btn" title="Remove this country from the selected side.">×</button>
                 </div>
@@ -4995,74 +4606,11 @@ randomWarBtn.onclick = () => {
     randomWarMode = !randomWarMode;
     randomWarBtn.innerText = randomWarMode ? "Random War: ON" : "Random War: OFF";
     randomWarBtn.style.background = randomWarMode ? "#8e44ad" : "#9b59b6";
-
+    
     if (randomWarMode && (gameState === 'SELECTING_P1' || gameState === 'SELECTING_P2')) {
         triggerRandomWar();
     }
 };
-
-// ========================
-// BATTLE ROYALE MODE
-// ========================
-const battleRoyaleBtn = document.getElementById('battle-royale-btn');
-if (battleRoyaleBtn) {
-    battleRoyaleBtn.onclick = () => {
-        // Collect all countries that have territory on the map
-        const allCountryIds = new Set();
-        if (worldControlMap) {
-            for (let i = 0; i < worldControlMap.length; i++) {
-                const id = worldControlMap[i];
-                if (id > 0) allCountryIds.add(id);
-            }
-        }
-        if (allCountryIds.size < 2) {
-            alert("Not enough countries on the map for Battle Royale.");
-            return;
-        }
-
-        // Put each country into its own side
-        sides = [];
-        allCountryIds.forEach(id => {
-            const meta = countryMetadata[id - 1];
-            if (!meta) return;
-            sides.push([{
-                feature: meta.feature,
-                id: meta.id,
-                color: meta.color,
-                name: meta.name,
-                buffState: meta.buffState || 'none',
-                flag: meta.tempFlag || null,
-                strategy: 'BALANCED',
-                role: 'OFFENSE'
-            }]);
-        });
-
-        // Enable FFA and No Peace
-        ffaMode = true;
-        ffaToggleBtn.style.border = '2px solid #fff';
-        ffaToggleBtn.innerText = 'FFA: ON';
-        const noPeaceCheckbox = document.getElementById('no-peace-checkbox');
-        if (noPeaceCheckbox) noPeaceCheckbox.checked = true;
-
-        activeSideIndex = 0;
-        updateSidesUI();
-
-        // Auto-start the war
-        activeRebellion = null;
-        startWar();
-    };
-}
-
-// ========================
-// ZOMBIE MODE
-// ========================
-const zombieModeCheckbox = document.getElementById('zombie-mode-checkbox');
-if (zombieModeCheckbox) {
-    zombieModeCheckbox.addEventListener('change', () => {
-        zombieMode = zombieModeCheckbox.checked;
-    });
-}
-
 
 function updatePersistentInfluence(p1Count, p2Count, countryToSideMap) {
     let baseInfluence = CONFIG.INFLUENCE_RATE;
@@ -5086,8 +4634,8 @@ function updatePersistentInfluence(p1Count, p2Count, countryToSideMap) {
 
     // Territory Diffusion Pass: Spread occupation laterally to prevent thin "fingers" and jagged borders
     // Increased samples and blur strength to ensure smoother, more solid frontline shapes.
-    const smoothingBase = 15000;
-    const smoothingSamples = Math.max(2000, Math.floor(smoothingBase / optimizationFactor));
+    const smoothingBase = 35000;
+    const smoothingSamples = Math.max(5000, Math.floor(smoothingBase / optimizationFactor));
     for (let s = 0; s < smoothingSamples; s++) {
         const idx = Math.floor(Math.random() * landMask.length);
         if (landMask[idx] !== 2) continue;
@@ -6426,34 +5974,6 @@ function handleCountryClick(feature, layer, latlng, originalEvent = null) {
 
 
 
-    // GRAND STRATEGY: Nation selection
-    if (gameState === 'GS_NATION_SELECT') {
-        if (sovereignId > 0) {
-            gsSelectNation(sovereignId);
-        }
-        return;
-    }
-
-    // GRAND STRATEGY: War target selection
-    if (gsActive && gsSelectingWarTarget) {
-        if (sovereignId > 0 && sovereignId !== gsPlayerCountryId) {
-            gsStartWarAgainst(sovereignId, gsPlayerCountryId);
-            gsSelectingWarTarget = false;
-            map.getContainer().classList.remove('painting-cursor');
-        }
-        return;
-    }
-
-    // GRAND STRATEGY: Alliance target selection
-    if (gsActive && gsSelectingAllyTarget) {
-        if (sovereignId > 0 && sovereignId !== gsPlayerCountryId) {
-            gsFormAlliance(gsPlayerCountryId, sovereignId);
-            gsSelectingAllyTarget = false;
-            map.getContainer().classList.remove('painting-cursor');
-        }
-        return;
-    }
-
     if (gameState === 'SIMULATING') {
         if (sovereignId > 0) {
             openInspector(sovereignId);
@@ -7158,8 +6678,6 @@ async function startWar() {
 
     teamAColor = attackers.length > 0 ? attackers[0].color : 'rgba(255,50,50,0.5)';
     teamBColor = defenders.length > 0 ? defenders[0].color : 'rgba(50,100,255,0.5)';
-    // ZOMBIE MODE: Override Side A color to toxic green
-    if (zombieMode) teamAColor = 'rgba(46, 204, 113, 0.6)';
     
     const repColorA = teamAColor.replace(/[\d.]+\)$/g, '1)');
     const repColorB = teamBColor.replace(/[\d.]+\)$/g, '1)');
@@ -7234,20 +6752,11 @@ async function startWar() {
             const fronts = frontlineIndices.get(c.id);
             if (!theaterIndices || theaterIndices.length === 0) return;
 
-            // Realistic Military: Use real-world troop numbers if available
-            const meta = countryMetadata[c.id - 1];
-            const realUnits = meta ? getRealMilitaryUnits(meta.name) : null;
+            // Diminishing Density: Large countries have lower unit density to prevent overcrowding
+            const sizeFactor = Math.max(1, theaterIndices.length / 1500);
+            const densityScale = 1.0 / Math.pow(sizeFactor, 0.45);
 
-            let desiredCount;
-            if (realUnits !== null) {
-                // Scale by density slider but use real military size as base
-                desiredCount = Math.round(realUnits * multiplier);
-            } else {
-                // Fallback: Diminishing Density for countries not in the lookup table
-                const sizeFactor = Math.max(1, theaterIndices.length / 1500);
-                const densityScale = 1.0 / Math.pow(sizeFactor, 0.45);
-                desiredCount = Math.floor(theaterIndices.length * CONFIG.UNIT_DENSITY_FACTOR * multiplier * densityScale);
-            }
+            let desiredCount = Math.floor(theaterIndices.length * CONFIG.UNIT_DENSITY_FACTOR * multiplier * densityScale);
             const floor = c.startingUnitsFloor || 3;
             desiredCount = Math.max(floor, desiredCount);
 
@@ -7392,14 +6901,10 @@ async function startWar() {
     ['A', 'B'].forEach(pole => {
         const validIndices = sidePoleIndices[pole];
         if (!validIndices || validIndices.length === 0) return;
-        const sideIdx = pole === 'A' ? 0 : 1;
 
         // Missile Silos (1942+)
         if (allowSilos) {
-            // MISSILE strategy countries get 3x more silos (USA-style missile supremacy)
-            const hasMissileStrategy = sides[sideIdx] && sides[sideIdx].some(c => c.strategy === 'MISSILE');
-            const siloMultiplier = hasMissileStrategy ? 3 : 1;
-            const baseCount = Math.min(24, Math.max(2, Math.floor(validIndices.length / 500) * siloMultiplier));
+            const baseCount = Math.min(8, Math.max(2, Math.floor(validIndices.length / 500)));
             for (let i = 0; i < baseCount; i++) {
                 const randIdx = validIndices[Math.floor(Math.random() * validIndices.length)];
                 const y = Math.floor(randIdx / gridWidth);
@@ -7407,63 +6912,10 @@ async function startWar() {
                 bases.push({
                     lat: (y * CONFIG.GRID_RES) - 90 + (CONFIG.GRID_RES / 2),
                     lng: (x * CONFIG.GRID_RES) - 180 + (CONFIG.GRID_RES / 2),
-                    team: pole,
-                    type: 'silo'
+                    team: pole
                 });
             }
         }
-
-        // Airports — spawn near cities when possible
-        const hasAirStrategy = sides[sideIdx] && sides[sideIdx].some(c => c.strategy === 'AIR');
-        const airportMultiplier = hasAirStrategy ? 3 : 1;
-        const airportCount = Math.min(18, Math.max(2, Math.floor(validIndices.length / 800) * airportMultiplier));
-
-        // Try to place airports near theater cities first
-        const poleCities = activeTheaterCities.filter(c => {
-            const idx = getGridIndex(c.lat, c.lng);
-            if (idx === -1) return false;
-            const owner = worldControlMap[idx];
-            return sides[sideIdx] && sides[sideIdx].some(s => s.id === owner);
-        });
-
-        let airportsPlaced = 0;
-        // Shuffle cities to get variety
-        const shuffledCities = poleCities.sort(() => Math.random() - 0.5);
-        for (let i = 0; i < shuffledCities.length && airportsPlaced < airportCount; i++) {
-            const city = shuffledCities[i];
-            bases.push({
-                lat: city.lat + (Math.random() - 0.5) * 0.3,
-                lng: city.lng + (Math.random() - 0.5) * 0.3,
-                team: pole,
-                type: 'airport',
-                lastBomber: 0,
-                lastFighter: 0
-            });
-            airportsPlaced++;
-        }
-        // Fill remaining with random positions
-        for (let i = airportsPlaced; i < airportCount; i++) {
-            const randIdx = validIndices[Math.floor(Math.random() * validIndices.length)];
-            const y = Math.floor(randIdx / gridWidth);
-            const x = randIdx % gridWidth;
-            bases.push({
-                lat: (y * CONFIG.GRID_RES) - 90 + (CONFIG.GRID_RES / 2),
-                lng: (x * CONFIG.GRID_RES) - 180 + (CONFIG.GRID_RES / 2),
-                team: pole,
-                type: 'airport',
-                lastBomber: 0,
-                lastFighter: 0
-            });
-        }
-
-        // Spawn initial patrol aircraft (1-2 per airport)
-        const airports = bases.filter(b => b.type === 'airport' && b.team === pole);
-        airports.forEach(ap => {
-            const patrolCount = 1 + Math.floor(Math.random() * 2);
-            for (let p = 0; p < patrolCount; p++) {
-                spawnAircraft('patrol', ap.lat, ap.lng, pole, sideIdx, null, null);
-            }
-        });
     });
 
     loadingOverlay.style.display = 'none';
@@ -7779,153 +7231,6 @@ function launchBomb(fromLat, fromLng, toLat, toLng, team) {
     });
 }
 
-// ========================
-// AIRCRAFT SYSTEM
-// ========================
-function spawnAircraft(type, fromLat, fromLng, team, sideIndex, targetLat, targetLng) {
-    const ac = {
-        id: Math.random(),
-        type: type, // 'bomber', 'fighter', 'patrol'
-        team: team,
-        sideIndex: sideIndex,
-        lat: fromLat,
-        lng: fromLng,
-        homeLat: fromLat,
-        homeLng: fromLng,
-        targetLat: targetLat || fromLat,
-        targetLng: targetLng || fromLng,
-        speed: type === 'fighter' ? 0.15 : type === 'bomber' ? 0.08 : 0.05,
-        health: type === 'bomber' ? 3 : type === 'fighter' ? 2 : 2,
-        state: type === 'patrol' ? 'patrolling' : 'outbound', // outbound, attacking, returning, patrolling
-        patrolAngle: Math.random() * Math.PI * 2,
-        patrolRadius: 1.5 + Math.random() * 1.5,
-        damageDealt: false
-    };
-    aircraft.push(ac);
-    return ac;
-}
-
-function updateAircraft() {
-    for (let i = aircraft.length - 1; i >= 0; i--) {
-        const ac = aircraft[i];
-        if (ac.health <= 0) {
-            // Explosion on death
-            explosions.push({ lat: ac.lat, lng: ac.lng, life: 20, maxRadius: 8 });
-            aircraft.splice(i, 1);
-            continue;
-        }
-
-        // Track previous position for heading calculation
-        ac.prevLat = ac.lat;
-        ac.prevLng = ac.lng;
-
-        if (ac.type === 'patrol') {
-            // Circle around home base
-            ac.patrolAngle += 0.02;
-            ac.lat = ac.homeLat + Math.sin(ac.patrolAngle) * ac.patrolRadius;
-            ac.lng = ac.homeLng + Math.cos(ac.patrolAngle) * ac.patrolRadius;
-
-            // Air superiority buff: boost friendly units in radius
-            // (Applied during combat calculation, not here)
-            continue;
-        }
-
-        if (ac.state === 'outbound') {
-            const dlat = ac.targetLat - ac.lat;
-            const dlng = ac.targetLng - ac.lng;
-            const dist = Math.sqrt(dlat * dlat + dlng * dlng);
-            if (dist < 0.3) {
-                ac.state = 'attacking';
-            } else {
-                ac.lat += (dlat / dist) * ac.speed;
-                ac.lng += (dlng / dist) * ac.speed;
-            }
-        } else if (ac.state === 'attacking') {
-            if (ac.type === 'bomber' && !ac.damageDealt) {
-                // Drop area damage
-                const damageRadius = 2.0;
-                const baseDamage = 0.15;
-                units.forEach(u => {
-                    if (u.team === ac.team) return;
-                    const dx = u.lat - ac.lat;
-                    const dy = u.lng - ac.lng;
-                    const d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < damageRadius) {
-                        const falloff = 1 - (d / damageRadius);
-                        u.health -= baseDamage * falloff;
-                    }
-                });
-                explosions.push({ lat: ac.lat, lng: ac.lng, life: 25, maxRadius: 15 });
-                ac.damageDealt = true;
-            } else if (ac.type === 'fighter') {
-                // Attack nearest enemy aircraft or ground unit
-                let nearestEnemy = null;
-                let nearestDist = 3.0;
-                // Prioritize enemy aircraft
-                aircraft.forEach(other => {
-                    if (other.team === ac.team || other.id === ac.id) return;
-                    const dx = other.lat - ac.lat;
-                    const dy = other.lng - ac.lng;
-                    const d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < nearestDist) {
-                        nearestDist = d;
-                        nearestEnemy = other;
-                    }
-                });
-                if (nearestEnemy) {
-                    nearestEnemy.health -= 0.5;
-                } else {
-                    // Strafe ground units
-                    let nearestGround = null;
-                    let gDist = 2.0;
-                    units.forEach(u => {
-                        if (u.team === ac.team) return;
-                        const dx = u.lat - ac.lat;
-                        const dy = u.lng - ac.lng;
-                        const d = Math.sqrt(dx * dx + dy * dy);
-                        if (d < gDist) {
-                            gDist = d;
-                            nearestGround = u;
-                        }
-                    });
-                    if (nearestGround) {
-                        nearestGround.health -= 0.08;
-                    }
-                }
-            }
-            ac.state = 'returning';
-        } else if (ac.state === 'returning') {
-            const dlat = ac.homeLat - ac.lat;
-            const dlng = ac.homeLng - ac.lng;
-            const dist = Math.sqrt(dlat * dlat + dlng * dlng);
-            if (dist < 0.3) {
-                // Returned home - remove
-                aircraft.splice(i, 1);
-                continue;
-            } else {
-                ac.lat += (dlat / dist) * ac.speed;
-                ac.lng += (dlng / dist) * ac.speed;
-            }
-        }
-    }
-}
-
-// Check if a position is within air superiority zone (friendly patrol aircraft nearby)
-function getAirSuperiorityBonus(lat, lng, team) {
-    let bonus = 0;
-    for (const ac of aircraft) {
-        if (ac.type !== 'patrol' || ac.team !== team) continue;
-        const dx = ac.lat - lat;
-        const dy = ac.lng - lng;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < ac.patrolRadius * 1.5) {
-            bonus = 0.2; // +20% damage, -20% damage taken
-            break;
-        }
-    }
-    return bonus;
-}
-
 function getBorderDirection(unit) {
     if (!worldControlMap || !landMask) return null;
 
@@ -8198,8 +7503,8 @@ function performSimulationTick() {
     // We sample the grid to find territory that is surrounded by the enemy.
     // This aggressively decays "border gore" and isolated bubbles.
     const optimizationFactor = getOptimizationFactor();
-    const integBase = 3000;
-    const integSamples = Math.max(500, Math.floor(integBase / optimizationFactor));
+    const integBase = 5000;
+    const integSamples = Math.max(1000, Math.floor(integBase / optimizationFactor));
     for (let s = 0; s < integSamples; s++) {
         const idx = Math.floor(Math.random() * landMask.length);
         if (landMask[idx] !== 2) continue; 
@@ -8613,12 +7918,6 @@ function performSimulationTick() {
                     * multiplier;
                 
                 if (country.isQuantityFocus) recruitmentChance *= 2.5;
-
-                // GRAND STRATEGY: Conscription boost
-                if (gsActive) {
-                    const gsEco = gsEconomy.get(country.id);
-                    if (gsEco && gsEco.conscripted) recruitmentChance *= 3.0;
-                }
                 
                 if (country.buffState === 'godly') {
                     recruitmentChance *= 12.0; // 12x recruitment speed
@@ -8687,13 +7986,6 @@ function performSimulationTick() {
         let damageDealtMult = 1.0;
         let damageTakenMult = 1.0;
         let speedBuffMult = 1.0;
-
-        // Air Superiority Bonus from patrol aircraft
-        const airBonus = getAirSuperiorityBonus(u.lat, u.lng, u.team);
-        if (airBonus > 0) {
-            damageDealtMult *= (1 + airBonus);
-            damageTakenMult *= (1 - airBonus);
-        }
 
         // Logistics/Supply Check
         const sideSupply = supplyMaps[sideIndex];
@@ -9524,10 +8816,8 @@ function performSimulationTick() {
 
             if (dist > 0.05 && !isEngaged) {
                 // Movement logic
-                let baseSpeed = isAtSea ? CONFIG.UNIT_NAVAL_SPEED : CONFIG.UNIT_SPEED;
-                // ZOMBIE MODE: zombie units move 40% faster
-                if (zombieMode && u.sideIndex === 0) baseSpeed *= 1.4;
-
+                const baseSpeed = isAtSea ? CONFIG.UNIT_NAVAL_SPEED : CONFIG.UNIT_SPEED;
+                
                 // Roaming Prevention: Removed exploratory wiggle to force a focused linear push
                 const landSpeedBuff = (!isAtSea && ((u.team === 'A' && currentControl > 0.5) || (u.team === 'B' && currentControl < -0.5))) ? 1.8 : 1.2;
                 const speedMult = landSpeedBuff * speedBuffMult;
@@ -9801,27 +9091,12 @@ function performSimulationTick() {
                     const victoryRatio = sideVictoryRatios[sideIndex] || 0;
                     
                     // UNITED PUSH COORDINATION: Units now creep forward even when not surging to prevent static fronts.
-                    if (zombieMode && u.sideIndex === 0) {
-                        // ZOMBIE HORDE: Always push aggressively, never stop
-                        pushReadiness = 5.0 * (0.6 + Math.random() * 0.8);
-                        if (u.victoryBoostTicks > 0) pushReadiness *= 1.6;
-                    } else if (countryObj?.strategy === 'MISSILE' || countryObj?.strategy === 'AIR') {
-                        // MISSILE/AIR DOCTRINE: Ground forces hold defensively, let rockets/aircraft do the work.
-                        // Only push when enemy is heavily weakened (high victory ratio).
-                        const victoryThreshold = 0.65;
-                        if (victoryRatio > victoryThreshold) {
-                            // Enemy softened — advance cautiously to claim territory
-                            pushReadiness = 1.5 * (victoryRatio - victoryThreshold) * 4;
-                        } else {
-                            // Hold the line — defensive posture
-                            pushReadiness = 0.15;
-                        }
-                    } else if (countryObj?.isSurging || countryObj?.strategy === 'AGGRESSIVE' || countryObj?.strategy === 'BLITZ') {
+                    if (countryObj?.isSurging || countryObj?.strategy === 'AGGRESSIVE' || countryObj?.strategy === 'BLITZ') {
                         // Spearhead Effect: Units move at varying speeds to create breakthroughs rather than straight lines
                         const spearheadAggression = (countryObj?.strategy === 'BLITZ' ? 1.5 : 1.0) * (0.5 + (Math.sin(u.id * 777) * 0.5 + 0.5)); // 0.5x to 1.5x variation
                         const momentumScale = Math.min(1.8, victoryRatio * 2.5);
                         pushReadiness = 4.2 * momentumScale * spearheadAggression;
-
+                        
                         // Attrition Adjustment: Long wars suppress aggressive surges unless victory is certain
                         pushReadiness *= (1.0 - (warWeariness * 0.5));
 
@@ -9884,11 +9159,8 @@ function performSimulationTick() {
                 // but making it harder for the attacker to break through without high losses.
                 const longWarDefense = (simFrameCount > 6000) ? 0.75 : 1.0;
                 
-                // ZOMBIE MODE: zombies deal 50% more damage, take 30% less
-                const zombieAttackMult = (zombieMode && u.sideIndex === 0) ? 1.5 : 1.0;
-                const zombieDefenseMult = (zombieMode && u.sideIndex === 0) ? 0.7 : 1.0;
-                const tDmg = CONFIG.COMBAT_DAMAGE * damageDealtMult * 0.7 * zombieAttackMult;
-                const uDmg = (CONFIG.COMBAT_DAMAGE * 0.8) * damageTakenMult * defenseBonus * longWarDefense * zombieDefenseMult;
+                const tDmg = CONFIG.COMBAT_DAMAGE * damageDealtMult * 0.7;
+                const uDmg = (CONFIG.COMBAT_DAMAGE * 0.8) * damageTakenMult * defenseBonus * longWarDefense;
                 
                 // Casualties increase while battling (direct engagement)
                 recordDamage(target, tDmg);
@@ -10166,10 +9438,7 @@ function performSimulationTick() {
                     const dist = Math.sqrt(dSq);
                     const falloff = 1 - (dist / killRadius); // 1 at center, 0 at edge
                     // Base missile damage scaled by distance; strong but non‑lethal except near center
-                    // MISSILE strategy: 2x damage per missile (precision-guided munitions)
-                    const missileBoost = (sides[0]?.some(c => c.strategy === 'MISSILE') && b.team === 'A') ||
-                                         (sides[1]?.some(c => c.strategy === 'MISSILE') && b.team === 'B') ? 2 : 1;
-                    const baseDamage = CONFIG.COMBAT_DAMAGE * 4 * missileBoost;
+                    const baseDamage = CONFIG.COMBAT_DAMAGE * 4;
                     const damage = baseDamage * Math.max(0.2, falloff); // ensure a minimum chunk
                     recordDamage(victim, damage);
                     // Do NOT splice here; units will be removed later when their health <= 0
@@ -10190,38 +9459,15 @@ function performSimulationTick() {
         
         if (poleAExists && poleBExists) {
             // Missile AI (Buffed frequency: 0.0025 -> 0.01)
-            // MISSILE strategy: 5x launch rate + multi-salvo (fires 2-3 missiles per volley)
-            const missileStrategyA = sides[0] && sides[0].some(c => c.strategy === 'MISSILE');
-            const missileStrategyB = sides[1] && sides[1].some(c => c.strategy === 'MISSILE');
-            const launchChanceA = missileStrategyA ? 0.05 : 0.01;
-            const launchChanceB = missileStrategyB ? 0.05 : 0.01;
-
-            if (bases.length > 0) {
-                // Team A launches
-                if (Math.random() < launchChanceA) {
-                    const myBases = bases.filter(b => b.team === 'A');
-                    const enemyUnits = units.filter(u => u.team === 'B');
-                    if (myBases.length > 0 && enemyUnits.length > 0) {
-                        const salvoCount = missileStrategyA ? Math.floor(Math.random() * 2) + 2 : 1; // 2-3 missiles per volley
-                        for (let s = 0; s < salvoCount; s++) {
-                            const launcher = myBases[Math.floor(Math.random() * myBases.length)];
-                            const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
-                            launchBomb(launcher.lat, launcher.lng, target.lat, target.lng, 'A');
-                        }
-                    }
-                }
-                // Team B launches
-                if (Math.random() < launchChanceB) {
-                    const myBases = bases.filter(b => b.team === 'B');
-                    const enemyUnits = units.filter(u => u.team === 'A');
-                    if (myBases.length > 0 && enemyUnits.length > 0) {
-                        const salvoCount = missileStrategyB ? Math.floor(Math.random() * 2) + 2 : 1;
-                        for (let s = 0; s < salvoCount; s++) {
-                            const launcher = myBases[Math.floor(Math.random() * myBases.length)];
-                            const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
-                            launchBomb(launcher.lat, launcher.lng, target.lat, target.lng, 'B');
-                        }
-                    }
+            if (bases.length > 0 && Math.random() < 0.01) {
+                const launcherTeam = Math.random() > 0.5 ? 'A' : 'B';
+                const targetTeam = launcherTeam === 'A' ? 'B' : 'A';
+                const myBases = bases.filter(b => b.team === launcherTeam);
+                const enemyUnits = units.filter(u => u.team === targetTeam);
+                if (myBases.length > 0 && enemyUnits.length > 0) {
+                    const launcher = myBases[Math.floor(Math.random() * myBases.length)];
+                    const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
+                    launchBomb(launcher.lat, launcher.lng, target.lat, target.lng, launcherTeam);
                 }
             }
         }
@@ -10232,134 +9478,12 @@ function performSimulationTick() {
         if (explosions[i].life <= 0) explosions.splice(i, 1);
     }
 
-    // ========================
-    // AIRCRAFT SYSTEM AI
-    // ========================
-    updateAircraft();
-
-    // Aircraft spawning from airports
-    if (simFrameCount % 120 === 0) {
-        const airports = bases.filter(b => b.type === 'airport');
-        airports.forEach(ap => {
-            const sideIdx = ap.team === 'A' ? 0 : 1;
-            const enemyTeam = ap.team === 'A' ? 'B' : 'A';
-            const hasAirStrategy = sides[sideIdx] && sides[sideIdx].some(c => c.strategy === 'AIR');
-            const spawnChance = hasAirStrategy ? 0.6 : 0.25;
-
-            // Bomber launch
-            if (Math.random() < spawnChance && (simFrameCount - (ap.lastBomber || 0)) > 80) {
-                const enemyUnits = units.filter(u => u.team === enemyTeam);
-                if (enemyUnits.length > 0) {
-                    const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
-                    spawnAircraft('bomber', ap.lat, ap.lng, ap.team, sideIdx, target.lat, target.lng);
-                    ap.lastBomber = simFrameCount;
-                }
-            }
-
-            // Fighter launch — reactive to nearby enemy aircraft
-            const nearbyEnemyAircraft = aircraft.filter(ac => {
-                if (ac.team === ap.team) return false;
-                const dx = ac.lat - ap.lat;
-                const dy = ac.lng - ap.lng;
-                return Math.sqrt(dx * dx + dy * dy) < 8;
-            });
-            if (nearbyEnemyAircraft.length > 0 && (simFrameCount - (ap.lastFighter || 0)) > 60) {
-                const target = nearbyEnemyAircraft[Math.floor(Math.random() * nearbyEnemyAircraft.length)];
-                spawnAircraft('fighter', ap.lat, ap.lng, ap.team, sideIdx, target.lat, target.lng);
-                ap.lastFighter = simFrameCount;
-            } else if (hasAirStrategy && Math.random() < 0.15 && (simFrameCount - (ap.lastFighter || 0)) > 60) {
-                // AIR strategy also sends offensive fighter sorties
-                const enemyUnits = units.filter(u => u.team === enemyTeam);
-                if (enemyUnits.length > 0) {
-                    const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
-                    spawnAircraft('fighter', ap.lat, ap.lng, ap.team, sideIdx, target.lat, target.lng);
-                    ap.lastFighter = simFrameCount;
-                }
-            }
-
-            // Respawn patrol aircraft if below quota
-            const myPatrols = aircraft.filter(ac => ac.type === 'patrol' && ac.team === ap.team &&
-                Math.sqrt((ac.homeLat - ap.lat) ** 2 + (ac.homeLng - ap.lng) ** 2) < 0.5);
-            if (myPatrols.length < 1 && Math.random() < 0.3) {
-                spawnAircraft('patrol', ap.lat, ap.lng, ap.team, sideIdx, null, null);
-            }
-        });
-    }
-
-    // ========================
-    // ZOMBIE MODE — Side A spawns endless reinforcements
-    // ========================
-    if (zombieMode && simFrameCount % 30 === 0) { // Every 0.5 seconds
-        const zombieSide = sides[0];
-        if (zombieSide && zombieSide.length > 0) {
-            const zombieUnits = units.filter(u => u.sideIndex === 0);
-            // Spawn 2-4 new zombie units near existing frontline units
-            const spawnCount = Math.floor(Math.random() * 3) + 2;
-            for (let z = 0; z < spawnCount; z++) {
-                if (zombieUnits.length === 0) break;
-                // Pick a random existing zombie unit to spawn near
-                const parent = zombieUnits[Math.floor(Math.random() * zombieUnits.length)];
-                const jitter = 0.3;
-                const newUnit = {
-                    id: Math.random(),
-                    lat: parent.lat + (Math.random() - 0.5) * jitter,
-                    lng: parent.lng + (Math.random() - 0.5) * jitter,
-                    team: 'A',
-                    sideIndex: 0,
-                    sovereignId: parent.sovereignId,
-                    beneficiaryId: parent.beneficiaryId,
-                    isAlpenjager: false,
-                    health: CONFIG.UNIT_HEALTH * 0.7, // Slightly weaker individually
-                    lastAttack: 0,
-                    deployTicks: 10,
-                    isZombie: true
-                };
-                units.push(newUnit);
-            }
-
-            // Zombie units are 30% faster and more aggressive
-            for (let i = 0; i < units.length; i++) {
-                const u = units[i];
-                if (u.sideIndex === 0 && !u._zombieBoosted) {
-                    u._zombieBoosted = true;
-                }
-            }
-        }
-    }
-
     return false;
 }
 
 function updateLoop(now) {
     const shouldSimulate = gameState === 'SIMULATING' || (godModeActive && (preGodModeState === 'SIMULATING' || preGodModeState === 'WAR_OVER'));
-    if (!shouldSimulate) {
-        // In GS peacetime, keep loop alive for economy/AI but skip combat
-        if (gsActive && gameState === 'GS_PEACE') {
-            if (!isPaused) {
-                tickGameTime(16.67);
-                gsTickCounter++;
-                gsMonthAccum += simSpeed;
-                // Economy tick every ~60 frames (slower = less lag)
-                if (gsMonthAccum >= 60) {
-                    gsMonthAccum -= 60;
-                    gsTickEconomy();
-                }
-                // AI tick every ~2000 frames (much slower)
-                gsAITimer += simSpeed;
-                if (gsAITimer >= 2000) {
-                    gsAITimer = 0;
-                    gsTickAI();
-                }
-                // Panel update every 30 frames
-                if (gsTickCounter % 30 === 0) gsUpdatePanel();
-                // Game over check every 60 frames
-                if (gsTickCounter % 60 === 0) gsCheckGameOver();
-            }
-            animationFrameId = requestAnimationFrame(updateLoop);
-            return;
-        }
-        return;
-    }
+    if (!shouldSimulate) return;
     // Avoid running the visual loop while a background tick loop is active
     if (document.hidden) return;
 
@@ -10380,26 +9504,6 @@ function updateLoop(now) {
             // Because we don't track previous timestamp, approximate per-frame using 16ms if undefined
             tickGameTime(16.67);
         }
-
-        // GRAND STRATEGY: Economy & AI ticks (wartime)
-        if (gsActive) {
-            gsTickCounter++;
-            gsMonthAccum += simSpeed;
-            if (gsMonthAccum >= 60) {
-                gsMonthAccum -= 60;
-                gsTickEconomy();
-            }
-            gsAITimer += simSpeed;
-            if (gsAITimer >= 2000) {
-                gsAITimer = 0;
-                gsTickAI();
-            }
-            if (gsTickCounter % 30 === 0) {
-                gsUpdatePanel();
-            }
-            // Check game over
-            gsCheckGameOver();
-        }
     }
 
     // Advance simulation frame counter once per visual loop
@@ -10407,13 +9511,7 @@ function updateLoop(now) {
 
     // Aggressive Render Skipping: At high sim speeds, process mechanics multiple times without painting
     let skipRenderThisFrame = false;
-    if (simSpeed >= 20) {
-        skipRenderThisFrame = (simFrameCount % 16 !== 0);
-    } else if (simSpeed >= 10) {
-        skipRenderThisFrame = (simFrameCount % 8 !== 0);
-    } else if (simSpeed >= 5) {
-        skipRenderThisFrame = (simFrameCount % 4 !== 0);
-    } else if (simSpeed >= 3) {
+    if (simSpeed >= 3) {
         skipRenderThisFrame = (simFrameCount % 3 !== 0);
     } else if (simSpeed >= 2) {
         skipRenderThisFrame = (simFrameCount % 2 !== 0);
@@ -10902,12 +10000,10 @@ function applyTreaty(type, winnerPoleOverride = null) {
         mediaRecorder.stop();
     }
 
-    // Freeze time system at war end (skip in GS mode — time continues)
+    // Freeze time system at war end and reflect final date in the setup inputs
     if (gameTimeDate && timeYearInput && timeMonthInput && timeDayInput) {
-        if (!gsActive) {
-            gameTimeEnabled = false;
-            gameTimeAccumulatorMs = 0;
-        }
+        gameTimeEnabled = false;
+        gameTimeAccumulatorMs = 0;
         timeYearInput.value = gameTimeDate.year;
         timeMonthInput.value = gameTimeDate.month;
         timeDayInput.value = gameTimeDate.day;
@@ -11159,20 +10255,15 @@ function applyTreaty(type, winnerPoleOverride = null) {
     bombs = [];
     explosions = [];
     bases = [];
-    aircraft = [];
     operationStarts.clear();
     recalculateAllBounds();
     influenceLayer.render();
     
     setTimeout(() => {
         treatyAlert.style.display = 'none';
-        if (gsActive) {
-            gsReturnToPeace();
-        } else {
-            resetToSelection();
-            if (randomWarMode) {
-                setTimeout(triggerRandomWar, 1500);
-            }
+        resetToSelection();
+        if (randomWarMode) {
+            setTimeout(triggerRandomWar, 1500);
         }
     }, 2500);
 }
@@ -11233,7 +10324,6 @@ function handleRebellionPeace() {
     generateProvinces();
     explosions = [];
     bases = [];
-    aircraft = [];
     operationStarts.clear();
     recalculateAllBounds();
     influenceLayer.render();
@@ -11245,20 +10335,6 @@ function handleRebellionPeace() {
 }
 
 function resetToSelection() {
-    // GRAND STRATEGY: After map loads in GS mode, go to nation select instead of conquest setup
-    if (gsActive && !gsWarActive) {
-        stopWarAmbiance();
-        gameState = 'GS_NATION_SELECT';
-        statusText.innerText = 'GRAND STRATEGY — Choose Your Nation';
-        setupPanel.style.display = 'none';
-        const gsPanelCheck = document.getElementById('gs-panel');
-        if (gsPanelCheck) gsPanelCheck.style.display = 'none';
-        document.getElementById('speed-controls').style.display = 'none';
-        mapUi.style.display = 'flex';
-        document.getElementById('game-status').style.display = 'flex';
-        return;
-    }
-
     stopWarAmbiance();
     // Stop in‑game time progression but keep the last war date visible in the setup
     gameTimeEnabled = false;
@@ -11312,7 +10388,6 @@ function resetToSelection() {
     bombs = [];
     explosions = [];
     bases = [];
-    aircraft = [];
     operationStarts.clear();
     setSpeed(0);
     frameAccumulator = 0;
@@ -11666,7 +10741,6 @@ if (quickRestartBtn) {
         bombs = [];
         explosions = [];
         bases = [];
-    aircraft = [];
         activeBattles = [];
         capitalLostCountries = new Set();
         activeRebellion = null;
@@ -11748,19 +10822,6 @@ mainMenuBtn.addEventListener('click', () => {
     gameState = 'MAIN_MENU';
     gameMode = 'CONQUEST';
     isPaused = false;
-
-    // Reset Grand Strategy state
-    gsActive = false;
-    gsPlayerCountryId = -1;
-    gsWarActive = false;
-    gsEconomy.clear();
-    gsTruces.clear();
-    gsAlliances.clear();
-    gsSelectingWarTarget = false;
-    gsSelectingAllyTarget = false;
-    gsEventLog = [];
-    const gsPanelEl = document.getElementById('gs-panel');
-    if (gsPanelEl) gsPanelEl.style.display = 'none';
 
     // Hide in‑game UI and show main menu
     mapUi.style.display = 'none';
@@ -12210,18 +11271,14 @@ function signSelectivePeace(exiter, target) {
     }
 }
 
-const SPEED_STEPS = [0.25, 0.5, 1, 1.5, 2, 3, 5, 10, 20];
+const SPEED_STEPS = [0.25, 0.5, 1, 1.5, 2, 3];
 let currentSpeedIndex = 0; // Index for "0.1x"
 
 function togglePause() {
     isPaused = !isPaused;
     pauseBtn.innerText = isPaused ? '▶' : '⏸';
     pauseBtn.style.background = isPaused ? '#27ae60' : '#f39c12';
-    if (gsActive) {
-        statusText.innerText = isPaused ? 'Grand Strategy — PAUSED' : (gsWarActive ? 'Grand Strategy — At War' : 'Grand Strategy — Peace');
-    } else {
-        statusText.innerText = isPaused ? getTranslation('SIM_PAUSED') : (ffaMode ? getTranslation('STABLE') : getTranslation('STABLE'));
-    }
+    statusText.innerText = isPaused ? getTranslation('SIM_PAUSED') : (ffaMode ? getTranslation('STABLE') : getTranslation('STABLE'));
 }
 
 pauseBtn.addEventListener('click', togglePause);
@@ -12326,78 +11383,6 @@ speedDownBtn.addEventListener('click', () => {
 speedUpBtn.addEventListener('click', () => {
     setSpeed(currentSpeedIndex + 1);
 });
-
-// ========================
-// INSTANT MODE
-// ========================
-const instantBtn = document.getElementById('instant-btn');
-if (instantBtn) {
-    instantBtn.addEventListener('click', () => {
-        // Accept both normal sim and god-mode sim states
-        const isSimActive = gameState === 'SIMULATING' ||
-            (godModeActive && (preGodModeState === 'SIMULATING'));
-        if (!isSimActive) {
-            console.log('[INSTANT] Not active — gameState:', gameState);
-            return;
-        }
-        if (isPaused) togglePause();
-
-        // Cancel the normal animation loop
-        cancelAnimationFrame(animationFrameId);
-        instantBtn.disabled = true;
-        instantBtn.innerText = 'RUNNING...';
-        instantBtn.style.background = '#555';
-        statusText.innerText = 'INSTANT MODE — Simulating...';
-
-        let tickCount = 0;
-        const BATCH_SIZE = 500;
-        const MAX_TICKS = 500000; // Safety limit
-
-        function instantBatch() {
-            for (let i = 0; i < BATCH_SIZE; i++) {
-                // Check if war already ended (gameState changed by applyTreaty)
-                if (gameState === 'WAR_OVER' || gameState === 'IDLE') {
-                    finishInstant(`War resolved in ${tickCount} ticks.`);
-                    return;
-                }
-                const warEnded = performSimulationTick();
-                simFrameCount++;
-                tickCount++;
-                if (warEnded || tickCount >= MAX_TICKS) {
-                    finishInstant(tickCount >= MAX_TICKS
-                        ? `Stopped after ${tickCount} ticks (limit).`
-                        : `War resolved in ${tickCount} ticks.`);
-                    return;
-                }
-            }
-            // Update progress in status bar
-            statusText.innerText = `INSTANT MODE — ${tickCount} ticks...`;
-            // Yield to UI then continue
-            setTimeout(instantBatch, 0);
-        }
-
-        function finishInstant(msg) {
-            instantBtn.disabled = false;
-            instantBtn.innerText = 'INSTANT';
-            instantBtn.style.background = '#8e44ad';
-            statusText.innerText = msg;
-            // Final render to show result
-            if (influenceLayer) {
-                if (typeof influenceLayer.render === 'function') influenceLayer.render();
-                if (typeof influenceLayer._update === 'function') {
-                    influenceLayer._forceRender = true;
-                    influenceLayer._update();
-                }
-            }
-            // Restart the visual loop if war is still going
-            if (gameState === 'SIMULATING') {
-                animationFrameId = requestAnimationFrame(updateLoop);
-            }
-        }
-
-        instantBatch();
-    });
-}
 
 if (customTrackInput) {
     customTrackInput.addEventListener('change', async (e) => {
@@ -13641,7 +12626,6 @@ document.getElementById('scroller-choice-tno')?.addEventListener('click', () => 
     });
 });
 
-// NATO vs BRICS scroller card
 // Enable double-click to launch scenarios immediately
 document.querySelectorAll('.scroller-card').forEach(card => {
     card.addEventListener('dblclick', () => {
@@ -13707,22 +12691,13 @@ choiceModernDay.onclick = async () => {
         console.error(e);
         // Fallback to old method if preset fails
         gameMode = 'CONQUEST';
-        gameState = gsActive ? 'GS_NATION_SELECT' : 'SELECTING_P1';
-        if (gsActive) {
-            statusText.innerText = 'GRAND STRATEGY — Choose Your Nation';
-            setupPanel.style.display = 'none';
-        }
+        gameState = 'SELECTING_P1';
         const mapRes = document.getElementById('map-res-select').value;
         const geoUrl = `${CONFIG.GEOJSON_BASE}${mapRes}/cultural/ne_${mapRes}_admin_0_countries.json`;
         mainMenu.style.display = 'none';
         loadCountries(geoUrl, false);
     }
 };
-
-// ========================
-// NATO vs BRICS — FULL SCENARIO
-// Merges all NATO countries into ONE nation and all BRICS into ONE nation
-// ========================
 
 choice1936Scenario.onclick = async () => {
     const selector = document.getElementById('menu-scenario-selector');
@@ -16248,7 +15223,6 @@ function resetConflictSetupState() {
     soldiersPerUnitB = CONFIG.UNIT_TO_SOLDIER_RATIO;
     units = [];
     bases = [];
-    aircraft = [];
     bombs = [];
     explosions = [];
     activeBattles = [];
@@ -16647,18 +15621,7 @@ async function performPresetLoad(fileOrBlob, targetMode = 'EDITOR') {
         // Refresh imagery layers to ensure street view and labels show up correctly for the new context
         setImageryProvider(imagerySelect.value, false);
 
-        if (targetMode === 'CONQUEST' && gsActive) {
-            // GRAND STRATEGY: Go to nation selection instead of normal conquest setup
-            gameState = 'GS_NATION_SELECT';
-            statusText.innerText = 'GRAND STRATEGY — Choose Your Nation';
-            setupPanel.style.display = 'none';
-            editorToolbox.style.display = 'none';
-            godModeBtn.style.display = 'none';
-            resetBtn.style.display = 'none';
-            statsPanel.style.display = 'none';
-            const gsPanelLoad = document.getElementById('gs-panel');
-            if (gsPanelLoad) gsPanelLoad.style.display = 'none';
-        } else if (targetMode === 'CONQUEST') {
+        if (targetMode === 'CONQUEST') {
             gameState = 'SELECTING_P1';
             statusText.innerText = currentScenarioContext ? `PLAYING: ${currentScenarioContext.name}` : getTranslation('SELECT_P1');
             setupPanel.style.display = 'block';
@@ -16694,13 +15657,12 @@ async function performPresetLoad(fileOrBlob, targetMode = 'EDITOR') {
             if (metaList.length === 0 && userChoice.action === 'generate') {
                 await spawnRandomNationsAcrossMap(userChoice.count);
             }
-
+            
             recalculateAllBounds();
             loadingOverlay.style.display = 'none';
             mapUi.style.display = 'flex';
             influenceLayer.render();
             updateRestartVisibility();
-
         }, 500);
     } catch (err) {
         console.error("Satellite Load Error:", err);
@@ -18416,860 +17378,3 @@ document.addEventListener('visibilitychange', () => {
         };
     }
 }
-
-// =====================================================================
-// GRAND STRATEGY MODE — Full implementation
-// =====================================================================
-
-// --- Grand Strategy Menu Button ---
-const grandStrategyBtn = document.getElementById('grand-strategy-btn');
-if (grandStrategyBtn) {
-    grandStrategyBtn.addEventListener('click', () => {
-        gsActive = true;
-        gameMode = 'CONQUEST'; // reuse conquest map loading
-        // Show era selection (same as PLAY)
-        const navMain = document.getElementById('nav-links-container');
-        const selector = document.getElementById('menu-scenario-selector');
-        navMain.classList.add('hidden');
-        setTimeout(() => {
-            navMain.style.display = 'none';
-            selector.style.display = 'flex';
-        }, 500);
-    });
-}
-
-// --- Count cells for a country ---
-// Cached cell counts — rebuilt periodically, not per-call
-let gsCellCountCache = new Map();
-let gsCellCountAge = 0;
-
-function gsRebuildCellCounts() {
-    gsCellCountCache.clear();
-    for (let i = 0; i < worldControlMap.length; i++) {
-        if (worldControlMap[i] > 0 && landMask[i] > 0) {
-            gsCellCountCache.set(worldControlMap[i], (gsCellCountCache.get(worldControlMap[i]) || 0) + 1);
-        }
-    }
-    gsCellCountAge = gsTickCounter;
-}
-
-function gsCountCells(countryId) {
-    // Rebuild cache every ~100 ticks or if stale
-    if (gsCellCountCache.size === 0 || gsTickCounter - gsCellCountAge > 100) {
-        gsRebuildCellCounts();
-    }
-    return gsCellCountCache.get(countryId) || 0;
-}
-
-// --- Initialize economies for all countries ---
-function gsInitAllEconomies() {
-    gsEconomy.clear();
-    gsAlliances.clear();
-    gsTruces.clear();
-    gsEventLog = [];
-    gsAITimer = 0;
-    gsTickCounter = 0;
-    gsMonthAccum = 0;
-
-    // Gather all country IDs on map
-    const countryIds = new Set();
-    for (let i = 0; i < worldControlMap.length; i++) {
-        if (worldControlMap[i] > 0 && landMask[i] > 0) countryIds.add(worldControlMap[i]);
-    }
-
-    countryIds.forEach(id => {
-        const meta = countryMetadata[id - 1];
-        const name = meta ? meta.name : '';
-        const mult = GS_GDP_MULTIPLIERS[name] || 1.0;
-        const cells = gsCountCells(id);
-        const gdpBase = Math.max(10, Math.round(cells * mult * 0.05));
-        gsEconomy.set(id, {
-            treasury: gdpBase * 2,
-            taxRate: 'medium',
-            income: gdpBase,
-            gdpBase: gdpBase,
-            rebellionRisk: 0,
-            conscripted: false,
-            conscriptEnd: null,
-            warWeariness: 0,
-            startCells: cells,
-            militaryReserve: 0,   // Purchased troops waiting to deploy
-            silos: 0,
-            airports: 0,
-            jets: 0
-        });
-        gsAlliances.set(id, new Set());
-    });
-}
-
-// --- Select player nation ---
-function gsSelectNation(countryId) {
-    gsPlayerCountryId = countryId;
-    gsInitAllEconomies();
-
-    const gsPanel = document.getElementById('gs-panel');
-    if (gsPanel) gsPanel.style.display = 'block';
-    setupPanel.style.display = 'none';
-
-    // Set up date from the era
-    const eraYears = {
-        'world_map_2022': 2022, 'world_map_1974': 1974, 'world_map_1942': 1942,
-        'world_map_1936': 1936, 'world_map_1914': 1914, 'world_map_1804': 1804,
-        'world_map_1492': 1492
-    };
-    const startYear = (currentScenarioContext && eraYears[currentScenarioContext.id]) || 2022;
-    gameTimeDate = { year: startYear, month: 1, day: 1 };
-    gameTimeEnabled = true;
-    gameTimeAccumulatorMs = 0;
-    if (gameDateDisplay) {
-        gameDateDisplay.style.display = 'block';
-        gameDateDisplay.textContent = formatGameDate();
-    }
-
-    // Show speed controls
-    document.getElementById('speed-controls').style.display = 'flex';
-    simSpeed = 1;
-    isPaused = false;
-
-    gameState = 'GS_PEACE';
-    gsWarActive = false;
-    statusText.innerText = 'Grand Strategy — Peace';
-
-    gsUpdatePanel();
-    gsSetupPanelListeners();
-
-    // Start the loop
-    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
-    animationFrameId = requestAnimationFrame(updateLoop);
-
-    gsAddEvent(`You now control ${countryMetadata[countryId - 1]?.name || 'Nation'}.`);
-}
-
-// --- GS Panel Listeners (called once) ---
-let gsPanelListenersSet = false;
-function gsSetupPanelListeners() {
-    if (gsPanelListenersSet) return;
-    gsPanelListenersSet = true;
-
-    // Tax buttons
-    document.querySelectorAll('.gs-tax-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const rate = btn.dataset.tax;
-            const eco = gsEconomy.get(gsPlayerCountryId);
-            if (!eco) return;
-            eco.taxRate = rate;
-            // Visual feedback
-            document.querySelectorAll('.gs-tax-btn').forEach(b => {
-                b.style.border = 'none';
-                b.classList.remove('active');
-            });
-            btn.style.border = '2px solid #fff';
-            btn.classList.add('active');
-            gsUpdatePanel();
-        });
-    });
-
-    // Buy buttons
-    document.querySelectorAll('.gs-buy-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const action = btn.dataset.action;
-            gsBuyAction(action);
-        });
-    });
-
-    // Conscription
-    const conscriptBtn = document.getElementById('gs-conscript-btn');
-    if (conscriptBtn) {
-        conscriptBtn.addEventListener('click', () => {
-            const eco = gsEconomy.get(gsPlayerCountryId);
-            if (!eco || eco.conscripted) return;
-            if (eco.treasury < GS_COSTS.conscription) return;
-            eco.treasury -= GS_COSTS.conscription;
-            eco.conscripted = true;
-            eco.conscriptEnd = gameTimeDate ? gameTimeDate.year + 2 : 9999;
-            eco.rebellionRisk += 0.05;
-            document.getElementById('gs-conscript-status').style.display = 'block';
-            conscriptBtn.style.opacity = '0.5';
-            gsAddEvent('Conscription activated!');
-            gsUpdatePanel();
-        });
-    }
-
-    // Declare war
-    const warBtn = document.getElementById('gs-declare-war-btn');
-    if (warBtn) {
-        warBtn.addEventListener('click', () => {
-            if (gsWarActive) return;
-            gsSelectingWarTarget = true;
-            gsSelectingAllyTarget = false;
-            statusText.innerText = 'Click on an enemy nation...';
-            map.getContainer().classList.add('painting-cursor');
-        });
-    }
-
-    // Alliance
-    const allyBtn = document.getElementById('gs-alliance-btn');
-    if (allyBtn) {
-        allyBtn.addEventListener('click', () => {
-            gsSelectingAllyTarget = true;
-            gsSelectingWarTarget = false;
-            statusText.innerText = 'Click on a nation to form an alliance...';
-            map.getContainer().classList.add('painting-cursor');
-        });
-    }
-}
-
-// --- Buy action ---
-function gsBuyAction(action) {
-    const eco = gsEconomy.get(gsPlayerCountryId);
-    if (!eco) return;
-
-    const costs = {
-        troops1k: GS_COSTS.troops1k,
-        troops10k: GS_COSTS.troops10k,
-        silo: GS_COSTS.silo,
-        airport: GS_COSTS.airport,
-        jet: GS_COSTS.jet
-    };
-
-    const cost = costs[action];
-    if (!cost || eco.treasury < cost) return;
-    eco.treasury -= cost;
-
-    if (action === 'troops1k' || action === 'troops10k') {
-        const troopCount = action === 'troops1k' ? 1000 : 10000;
-        if (gsWarActive && gameState === 'SIMULATING') {
-            // In war: spawn real units immediately
-            const numUnits = Math.max(1, Math.ceil(troopCount / CONFIG.UNIT_TO_SOLDIER_RATIO));
-            for (let n = 0; n < numUnits; n++) {
-                gsSpawnUnitForCountry(gsPlayerCountryId);
-            }
-        } else {
-            // In peace: add to reserves
-            eco.militaryReserve += troopCount;
-        }
-        gsAddEvent(`+${troopCount.toLocaleString('en')} troops recruited.`);
-    } else if (action === 'silo') {
-        eco.silos++;
-        gsAddEvent(`Missile silo built. (${eco.silos} total)`);
-    } else if (action === 'airport') {
-        eco.airports++;
-        gsAddEvent(`Airport built. (${eco.airports} total)`);
-    } else if (action === 'jet') {
-        if (eco.airports > 0) {
-            eco.jets++;
-            gsAddEvent(`Fighter jet deployed. (${eco.jets} total)`);
-        } else {
-            eco.treasury += cost; // Refund
-            gsAddEvent('No airport available!');
-        }
-    }
-    gsUpdatePanel();
-}
-
-// --- Spawn unit for a country (peacetime or wartime) ---
-function gsSpawnUnitForCountry(countryId) {
-    // If war is active, use the real spawn function
-    if (gsWarActive && gameState === 'SIMULATING') {
-        const sideIdx = sides.findIndex(s => s.some(c => c.id === countryId));
-        if (sideIdx !== -1) {
-            const team = sideIdx % 2 === 0 ? 'A' : 'B';
-            spawnSingleUnit(sideIdx, countryId, team);
-            return;
-        }
-    }
-
-    // Peacetime: create a unit in own territory
-    const cells = [];
-    const step = Math.max(1, Math.floor(landMask.length / 200000));
-    for (let i = 0; i < landMask.length; i += step) {
-        if (worldControlMap[i] === countryId && landMask[i] > 0) cells.push(i);
-    }
-    if (cells.length === 0) return;
-
-    const idx = cells[Math.floor(Math.random() * cells.length)];
-    const y = Math.floor(idx / gridWidth);
-    const x = idx % gridWidth;
-    const lat = 90 - (y + 0.5) * (180 / gridHeight);
-    const lng = -180 + (x + 0.5) * (360 / gridWidth);
-
-    units.push({
-        lat, lng, vx: 0, vy: 0,
-        team: 'A', sideIndex: 0,
-        sovereignId: countryId,
-        beneficiaryId: countryId,
-        health: CONFIG.UNIT_HEALTH,
-        lastAttack: 0,
-        deployTicks: 5,
-        id: Math.random()
-    });
-}
-
-// --- Random cell in country territory ---
-function gsRandomCellForCountry(countryId) {
-    const cells = [];
-    const step = Math.max(1, Math.floor(landMask.length / 100000));
-    for (let i = 0; i < landMask.length; i += step) {
-        if (worldControlMap[i] === countryId && landMask[i] > 0) cells.push(i);
-    }
-    return cells.length > 0 ? cells[Math.floor(Math.random() * cells.length)] : null;
-}
-
-// --- Economy Tick (every ~month in-game) ---
-function gsTickEconomy() {
-    gsEconomy.forEach((eco, countryId) => {
-        const currentCells = gsCountCells(countryId);
-        const cellRatio = eco.startCells > 0 ? currentCells / eco.startCells : 0;
-        const taxConfig = GS_TAX_RATES[eco.taxRate] || GS_TAX_RATES.medium;
-
-        // Income
-        let income = eco.gdpBase * taxConfig.mult * cellRatio * (1 - eco.warWeariness * 0.3);
-        if (eco.conscripted) income *= 0.7;
-        income = Math.max(0, Math.round(income));
-        eco.income = income;
-        eco.treasury += income;
-
-        // Rebellion risk
-        eco.rebellionRisk += taxConfig.rebellionRate;
-        if (eco.conscripted) eco.rebellionRisk += 0.003;
-        eco.rebellionRisk -= 0.0005; // natural decay
-        eco.rebellionRisk = Math.max(0, Math.min(1, eco.rebellionRisk));
-
-        // Check rebellion trigger
-        if (eco.rebellionRisk > 0.1 && Math.random() < eco.rebellionRisk * 0.005) {
-            gsTriggerRebellion(countryId);
-        }
-
-        // War weariness decay
-        if (!gsWarActive) {
-            eco.warWeariness = Math.max(0, eco.warWeariness - 0.02);
-        }
-
-        // Conscription expiry
-        if (eco.conscripted && gameTimeDate && gameTimeDate.year >= eco.conscriptEnd) {
-            eco.conscripted = false;
-            eco.conscriptEnd = null;
-            if (countryId === gsPlayerCountryId) {
-                document.getElementById('gs-conscript-status').style.display = 'none';
-                document.getElementById('gs-conscript-btn').style.opacity = '1';
-                gsAddEvent('Conscription expired.');
-            }
-        }
-    });
-
-    // Remove expired truces
-    if (gameTimeDate) {
-        for (const [key, expiry] of gsTruces) {
-            if (gameTimeDate.year >= expiry) gsTruces.delete(key);
-        }
-    }
-}
-
-// --- Rebellion ---
-function gsTriggerRebellion(countryId) {
-    const eco = gsEconomy.get(countryId);
-    if (!eco) return;
-
-    eco.rebellionRisk = 0; // Reset after triggering
-
-    const meta = countryMetadata[countryId - 1];
-    const name = meta ? meta.name : 'Nation';
-
-    gsAddEvent(`⚠ REBELLION in ${name}! Rebels are rising!`);
-
-    // Real effects: lose 15-20% of territory, massive treasury hit
-    const targetLoss = Math.round(eco.startCells * (0.15 + Math.random() * 0.05));
-    eco.treasury = Math.max(0, eco.treasury - eco.gdpBase * 5);
-    eco.warWeariness = Math.min(1, eco.warWeariness + 0.3);
-    eco.militaryReserve = Math.max(0, eco.militaryReserve - 5000);
-
-    // Find a random neighbor to give the rebel cells to (simulates breakaway)
-    const neighbor = gsFindNeighbor(countryId);
-
-    // Actually transfer cells to neighbor or unclaim them
-    let lost = 0;
-    // Shuffle approach: iterate randomly by stepping from random start
-    const start = Math.floor(Math.random() * worldControlMap.length);
-    for (let j = 0; j < worldControlMap.length && lost < targetLoss; j++) {
-        const i = (start + j * 7) % worldControlMap.length; // pseudo-random scatter
-        if (worldControlMap[i] === countryId && landMask[i] > 0) {
-            if (Math.random() < 0.25) {
-                if (neighbor > 0) {
-                    worldControlMap[i] = neighbor; // Territory goes to neighbor
-                }
-                lost++;
-            }
-        }
-    }
-
-    // Update start cells to reflect loss
-    eco.startCells = gsCountCells(countryId);
-
-    // Re-render map to show territory change
-    if (typeof recalculateAllBounds === 'function') recalculateAllBounds();
-    if (influenceLayer) influenceLayer.render();
-
-    if (countryId === gsPlayerCountryId) {
-        statusText.innerText = `REBELLION! ${lost} territories lost!`;
-    }
-}
-
-// --- AI Behavior ---
-function gsTickAI() {
-    gsEconomy.forEach((eco, countryId) => {
-        if (countryId === gsPlayerCountryId) return; // Skip player
-        if (!eco || eco.startCells === 0) return;
-
-        // 1. Adjust taxes
-        if (eco.rebellionRisk > 0.4) {
-            eco.taxRate = 'low';
-        } else if (gsWarActive && eco.treasury < eco.gdpBase) {
-            eco.taxRate = 'high';
-        } else if (eco.rebellionRisk < 0.05) {
-            eco.taxRate = 'medium';
-        }
-
-        // 2. Buy troops — in war: spawn immediately; in peace: build reserves
-        if (gsWarActive) {
-            const budget = eco.treasury * 0.4;
-            const troopBuys = Math.floor(budget / GS_COSTS.troops1k);
-            for (let i = 0; i < Math.min(troopBuys, 5); i++) {
-                if (eco.treasury >= GS_COSTS.troops1k) {
-                    eco.treasury -= GS_COSTS.troops1k;
-                    gsSpawnUnitForCountry(countryId);
-                }
-            }
-        } else if (eco.treasury > eco.gdpBase * 3 && Math.random() < 0.3) {
-            // Peacetime: invest in military reserves
-            eco.treasury -= GS_COSTS.troops1k;
-            eco.militaryReserve += 1000;
-        }
-
-        // 3. Consider declaring war (only in peace, extremely rare — ~0.02% per nation per cycle)
-        // Only one AI check per cycle gets to roll (first nation in iteration)
-        if (!gsWarActive && !gsSelectingWarTarget && !gsSelectingAllyTarget && Math.random() < 0.0002) {
-            // Find a neighbor
-            const neighbor = gsFindNeighbor(countryId);
-            if (neighbor > 0 && neighbor !== gsPlayerCountryId) {
-                const truceKey = [Math.min(countryId, neighbor), Math.max(countryId, neighbor)].join('-');
-                if (!gsTruces.has(truceKey)) {
-                    // AI wars: start war between these two
-                    gsStartWarAgainst(neighbor, countryId);
-                }
-            }
-        }
-
-        // 4. Conscription if losing badly in war
-        if (gsWarActive && !eco.conscripted) {
-            const currentCells = gsCountCells(countryId);
-            if (currentCells < eco.startCells * 0.5 && eco.treasury >= GS_COSTS.conscription) {
-                eco.treasury -= GS_COSTS.conscription;
-                eco.conscripted = true;
-                eco.conscriptEnd = gameTimeDate ? gameTimeDate.year + 2 : 9999;
-            }
-        }
-    });
-}
-
-// --- Find a neighboring country ---
-// Cached neighbor map — rebuilt once per AI cycle
-let gsNeighborCache = new Map();
-let gsNeighborCacheAge = -1;
-
-function gsRebuildNeighborCache() {
-    gsNeighborCache.clear();
-    const step = Math.max(1, Math.floor(landMask.length / 30000));
-    for (let i = 0; i < landMask.length; i += step) {
-        const id = worldControlMap[i];
-        if (id > 0 && landMask[i] > 0) {
-            const adj = [i + 1, i - 1, i + gridWidth, i - gridWidth];
-            for (const n of adj) {
-                if (n >= 0 && n < landMask.length) {
-                    const nId = worldControlMap[n];
-                    if (nId > 0 && nId !== id) {
-                        if (!gsNeighborCache.has(id)) gsNeighborCache.set(id, new Set());
-                        gsNeighborCache.get(id).add(nId);
-                    }
-                }
-            }
-        }
-    }
-    gsNeighborCacheAge = gsTickCounter;
-}
-
-function gsFindNeighbor(countryId) {
-    if (gsNeighborCacheAge < 0 || gsTickCounter - gsNeighborCacheAge > 500) {
-        gsRebuildNeighborCache();
-    }
-    const neighbors = gsNeighborCache.get(countryId);
-    if (!neighbors || neighbors.size === 0) return -1;
-    const arr = Array.from(neighbors);
-    return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// --- Start war between attacker and target ---
-function gsStartWarAgainst(targetId, attackerId) {
-    if (gsWarActive) return;
-
-    const attackerMeta = countryMetadata[attackerId - 1];
-    const targetMeta = countryMetadata[targetId - 1];
-    const attackerName = attackerMeta ? attackerMeta.name : 'Attacker';
-    const targetName = targetMeta ? targetMeta.name : 'Defender';
-
-    gsWarActive = true;
-    gsAddEvent(`WAR: ${attackerName} declares war on ${targetName}!`);
-
-    // Build sides
-    sides = [[], []];
-
-    // Attacker side (side 0)
-    const attackerAllies = gsAlliances.get(attackerId) || new Set();
-    const attackerTeam = [attackerId, ...attackerAllies];
-
-    // Defender side (side 1)
-    const defenderAllies = gsAlliances.get(targetId) || new Set();
-    const defenderTeam = [targetId, ...defenderAllies];
-
-    // Remove duplicates — a country can't be on both sides
-    const defenderSet = new Set(defenderTeam);
-    const finalAttackers = attackerTeam.filter(id => !defenderSet.has(id));
-    const attackerSet = new Set(finalAttackers);
-    const finalDefenders = defenderTeam.filter(id => !attackerSet.has(id));
-
-    finalAttackers.forEach(id => {
-        const meta = countryMetadata[id - 1];
-        if (!meta) return;
-        sides[0].push({
-            feature: meta.feature, id: meta.id, color: meta.color,
-            name: meta.name, buffState: meta.buffState || 'none',
-            flag: null, strategy: 'BALANCED', role: 'OFFENSE'
-        });
-    });
-
-    finalDefenders.forEach(id => {
-        const meta = countryMetadata[id - 1];
-        if (!meta) return;
-        sides[1].push({
-            feature: meta.feature, id: meta.id, color: meta.color,
-            name: meta.name, buffState: meta.buffState || 'none',
-            flag: null, strategy: 'BALANCED', role: 'OFFENSE'
-        });
-    });
-
-    attackers = sides[0];
-    defenders = sides[1];
-
-    // War weariness increase
-    [...finalAttackers, ...finalDefenders].forEach(id => {
-        const eco = gsEconomy.get(id);
-        if (eco) eco.warWeariness = Math.min(1, eco.warWeariness + 0.1);
-    });
-
-    // Set up the war using existing system
-    teamAId = sides[0].length > 0 ? sides[0][0].id : -1;
-    gameState = 'SIMULATING';
-
-    // Configure war settings — GS wars fight to the death, no auto-peace
-    peaceTreatiesDisabled = true;
-    bombsDisabled = false;
-
-    // Initialize theater: mark territory as active
-    for (let i = 0; i < landMask.length; i++) {
-        if (landMask[i] === 1) {
-            const ownerId = worldControlMap[i];
-            const ownerSide = sides.findIndex(s => s.some(c => c.id === ownerId));
-            if (ownerSide !== -1) {
-                landMask[i] = 2;
-                occupationMap[i] = ownerSide % 2 === 0 ? 1 : -1;
-                primaryOccupierMap[i] = ownerId;
-            }
-        }
-    }
-
-    // Spawn initial units for warring nations + deploy reserves
-    sides.forEach((side, sIdx) => {
-        const team = sIdx % 2 === 0 ? 'A' : 'B';
-        side.forEach(country => {
-            const cells = gsCountCells(country.id);
-            const eco = gsEconomy.get(country.id);
-            // Base units: scale with territory. Small nations ~2-3, large ~40-50
-            const baseUnits = Math.max(2, Math.min(Math.ceil(cells * 0.005), 50));
-            // Bonus units from military reserves
-            const reserveUnits = eco ? Math.ceil(eco.militaryReserve / CONFIG.UNIT_TO_SOLDIER_RATIO) : 0;
-            const totalUnits = Math.min(baseUnits + reserveUnits, CONFIG.MAX_UNITS_PER_SIDE / Math.max(1, side.length));
-            for (let n = 0; n < totalUnits; n++) {
-                spawnSingleUnit(sIdx, country.id, team);
-            }
-            // Deploy purchased infrastructure
-            if (eco) {
-                eco.militaryReserve = 0; // Reserves deployed
-                for (let s = 0; s < eco.silos; s++) {
-                    const cell = gsRandomCellForCountry(country.id);
-                    if (cell) {
-                        const lat = 90 - (Math.floor(cell / gridWidth) + 0.5) * (180 / gridHeight);
-                        const lng = -180 + (cell % gridWidth + 0.5) * (360 / gridWidth);
-                        bases.push({ lat, lng, team, type: 'silo' });
-                    }
-                }
-                for (let a = 0; a < eco.airports; a++) {
-                    const cell = gsRandomCellForCountry(country.id);
-                    if (cell) {
-                        const lat = 90 - (Math.floor(cell / gridWidth) + 0.5) * (180 / gridHeight);
-                        const lng = -180 + (cell % gridWidth + 0.5) * (360 / gridWidth);
-                        bases.push({ lat, lng, team, type: 'airport' });
-                    }
-                }
-                for (let j = 0; j < eco.jets; j++) {
-                    const myAirports = bases.filter(b => b.team === team && b.type === 'airport');
-                    if (myAirports.length > 0) {
-                        const ap = myAirports[Math.floor(Math.random() * myAirports.length)];
-                        aircraft.push({
-                            lat: ap.lat, lng: ap.lng,
-                            baseLat: ap.lat, baseLng: ap.lng,
-                            team, health: 100, state: 'PATROL',
-                            vx: 0, vy: 0
-                        });
-                    }
-                }
-            }
-        });
-    });
-
-    // Update UI
-    updateSidesUI();
-    if (typeof statsPanel !== 'undefined') statsPanel.style.display = 'block';
-    document.getElementById('speed-controls').style.display = 'flex';
-    if (typeof forcePeaceBtn !== 'undefined') forcePeaceBtn.style.display = 'block';
-    if (typeof unitCountsDiv !== 'undefined') unitCountsDiv.style.display = 'flex';
-    if (typeof casualtyPanel !== 'undefined') casualtyPanel.style.display = 'block';
-    // Keep GS panel visible during war
-    const gsPanelWar = document.getElementById('gs-panel');
-    if (gsPanelWar) gsPanelWar.style.display = 'block';
-    setupPanel.style.display = 'none';
-
-    sideACasualties = 0;
-    sideBCasualties = 0;
-    countryCasualties.clear();
-    simFrameCount = 0;
-    initialCombatants = [];
-    sides.forEach((side, sIdx) => {
-        side.forEach(c => initialCombatants.push({ id: c.id, name: c.name, pole: sIdx % 2 }));
-    });
-
-    recalculateAllBounds();
-    influenceLayer.render();
-
-    // Ensure animation loop is running
-    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
-    animationFrameId = requestAnimationFrame(updateLoop);
-}
-
-// --- Form alliance ---
-function gsFormAlliance(countryA, countryB) {
-    const allyA = gsAlliances.get(countryA) || new Set();
-    const allyB = gsAlliances.get(countryB) || new Set();
-    allyA.add(countryB);
-    allyB.add(countryA);
-    gsAlliances.set(countryA, allyA);
-    gsAlliances.set(countryB, allyB);
-
-    const nameA = countryMetadata[countryA - 1]?.name || 'Nation A';
-    const nameB = countryMetadata[countryB - 1]?.name || 'Nation B';
-    gsAddEvent(`Alliance: ${nameA} ↔ ${nameB}`);
-    statusText.innerText = `Alliance formed: ${nameA} & ${nameB}`;
-    gsUpdatePanel();
-}
-
-// --- Return to peace after war ---
-function gsReturnToPeace() {
-    gsWarActive = false;
-    gameState = 'GS_PEACE';
-    gameTimeEnabled = true;
-    statusText.innerText = 'Grand Strategy — Peace';
-
-    // Set truces between former combatants
-    if (gameTimeDate) {
-        const expiryYear = gameTimeDate.year + 5;
-        const allCombatants = sides.flat().map(c => c.id);
-        for (let i = 0; i < allCombatants.length; i++) {
-            for (let j = i + 1; j < allCombatants.length; j++) {
-                // Only truce between opposing sides
-                const sideI = sides.findIndex(s => s.some(c => c.id === allCombatants[i]));
-                const sideJ = sides.findIndex(s => s.some(c => c.id === allCombatants[j]));
-                if (sideI % 2 !== sideJ % 2) {
-                    const key = [Math.min(allCombatants[i], allCombatants[j]), Math.max(allCombatants[i], allCombatants[j])].join('-');
-                    gsTruces.set(key, expiryYear);
-                }
-            }
-        }
-    }
-
-    // Clean up war state but keep borders as-is
-    // Reset landMask from 2 to 1 (de-activate theater)
-    for (let i = 0; i < landMask.length; i++) {
-        if (landMask[i] === 2) {
-            landMask[i] = 1;
-            occupationMap[i] = 0;
-            primaryOccupierMap[i] = 0;
-        }
-    }
-
-    units = [];
-    unitSpatialHash.clear();
-    activeBattles = [];
-    bombs = [];
-    explosions = [];
-    bases = [];
-    aircraft = [];
-    operationStarts.clear();
-
-    // Recalculate economy start cells post-war
-    gsEconomy.forEach((eco, id) => {
-        eco.startCells = gsCountCells(id);
-    });
-
-    // Hide combat UI, show GS panel
-    if (typeof statsPanel !== 'undefined') statsPanel.style.display = 'none';
-    if (typeof casualtyPanel !== 'undefined') casualtyPanel.style.display = 'none';
-    if (typeof forcePeaceBtn !== 'undefined') forcePeaceBtn.style.display = 'none';
-    if (typeof unitCountsDiv !== 'undefined') unitCountsDiv.style.display = 'none';
-    document.getElementById('speed-controls').style.display = 'flex';
-    document.getElementById('gs-panel').style.display = 'block';
-
-    recalculateAllBounds();
-    influenceLayer.render();
-    gsUpdatePanel();
-    gsAddEvent('War ended. Peace restored.');
-
-    // Restart loop for peacetime
-    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
-    animationFrameId = requestAnimationFrame(updateLoop);
-}
-
-// --- Check game over ---
-function gsCheckGameOver() {
-    if (!gsActive || gsPlayerCountryId <= 0) return;
-    const cells = gsCountCells(gsPlayerCountryId);
-    if (cells === 0) {
-        gsActive = false;
-        const name = countryMetadata[gsPlayerCountryId - 1]?.name || 'Deine Nation';
-        statusText.innerText = `GAME OVER — ${name} has been destroyed!`;
-        gsAddEvent('GAME OVER!');
-        if (animationFrameId !== null) {
-            cancelAnimationFrame(animationFrameId);
-            animationFrameId = null;
-        }
-        gameState = 'WAR_OVER';
-    }
-}
-
-// --- Update GS Panel UI ---
-function gsUpdatePanel() {
-    const eco = gsEconomy.get(gsPlayerCountryId);
-    if (!eco) return;
-
-    const meta = countryMetadata[gsPlayerCountryId - 1];
-    const nameEl = document.getElementById('gs-nation-name');
-    const dateEl = document.getElementById('gs-date-display');
-    const treasuryEl = document.getElementById('gs-treasury');
-    const incomeEl = document.getElementById('gs-income');
-    const rebellionEl = document.getElementById('gs-rebellion-bar');
-    const warsEl = document.getElementById('gs-wars-list');
-    const alliesEl = document.getElementById('gs-allies-list');
-    const eventsEl = document.getElementById('gs-events');
-    const flagEl = document.getElementById('gs-flag');
-
-    if (nameEl) nameEl.textContent = meta ? meta.name : 'Nation';
-    if (dateEl && gameTimeDate) dateEl.textContent = formatGameDate();
-    if (treasuryEl) treasuryEl.textContent = Math.round(eco.treasury).toLocaleString('en');
-    if (incomeEl) incomeEl.textContent = `+${Math.round(eco.income)}/month`;
-
-    // Flag
-    if (flagEl && meta && meta.tempFlag) {
-        flagEl.src = meta.tempFlag;
-        flagEl.style.display = 'block';
-    }
-
-    // Rebellion bar
-    if (rebellionEl) {
-        const pct = Math.round(eco.rebellionRisk * 100);
-        const barWidth = Math.min(100, pct * 2);
-        rebellionEl.innerHTML = `Rebellion Risk: ${pct}% <div style="background:rgba(255,255,255,0.1);height:4px;border-radius:2px;margin-top:2px;"><div style="width:${barWidth}%;height:100%;background:${pct > 50 ? '#e74c3c' : pct > 20 ? '#f39c12' : '#2ecc71'};border-radius:2px;transition:width 0.3s;"></div></div>`;
-    }
-
-    // Military reserves display
-    const incomeDisplay = document.getElementById('gs-income');
-    if (incomeDisplay) {
-        let milInfo = `+${Math.round(eco.income)}/month`;
-        const parts = [];
-        if (eco.militaryReserve > 0) parts.push(`${eco.militaryReserve.toLocaleString('en')} Troops`);
-        if (eco.silos > 0) parts.push(`${eco.silos} Silos`);
-        if (eco.airports > 0) parts.push(`${eco.airports} Airports`);
-        if (eco.jets > 0) parts.push(`${eco.jets} Jets`);
-        if (parts.length > 0) {
-            incomeDisplay.innerHTML = `${milInfo}<br><span style="color:#3498db;font-size:9px;">Reserves: ${parts.join(', ')}</span>`;
-        } else {
-            incomeDisplay.textContent = milInfo;
-        }
-    }
-
-    // Disable buy buttons if not enough gold
-    document.querySelectorAll('.gs-buy-btn').forEach(btn => {
-        const action = btn.dataset.action;
-        const costs = { troops1k: GS_COSTS.troops1k, troops10k: GS_COSTS.troops10k, silo: GS_COSTS.silo, airport: GS_COSTS.airport, jet: GS_COSTS.jet };
-        const cost = costs[action] || 0;
-        btn.style.opacity = eco.treasury >= cost ? '1' : '0.4';
-    });
-
-    // Wars list
-    if (warsEl) {
-        if (gsWarActive) {
-            const enemies = sides[1] ? sides[1].map(c => c.name).join(', ') : '';
-            warsEl.innerHTML = `<span style="color:#e74c3c;">At war with: ${enemies}</span>`;
-        } else {
-            warsEl.innerHTML = '<span style="color:#2ecc71;">Peace</span>';
-        }
-    }
-
-    // Allies list
-    if (alliesEl) {
-        const allies = gsAlliances.get(gsPlayerCountryId);
-        if (allies && allies.size > 0) {
-            const names = Array.from(allies).map(id => countryMetadata[id - 1]?.name || '?').join(', ');
-            alliesEl.innerHTML = `<span style="color:#2e86de;">Allies: ${names}</span>`;
-        } else {
-            alliesEl.innerHTML = '<span style="color:#666;">No allies</span>';
-        }
-    }
-
-    // Events
-    if (eventsEl) {
-        eventsEl.innerHTML = gsEventLog.slice(-8).reverse().map(e => `<div style="margin-bottom:2px;">${e}</div>`).join('');
-    }
-
-    // Conscript button state
-    const conscriptBtn = document.getElementById('gs-conscript-btn');
-    const conscriptStatus = document.getElementById('gs-conscript-status');
-    if (conscriptBtn) {
-        conscriptBtn.style.opacity = (!eco.conscripted && eco.treasury >= GS_COSTS.conscription) ? '1' : '0.4';
-    }
-    if (conscriptStatus) {
-        conscriptStatus.style.display = eco.conscripted ? 'block' : 'none';
-    }
-
-    // War button state
-    const warBtn = document.getElementById('gs-declare-war-btn');
-    if (warBtn) {
-        warBtn.style.opacity = gsWarActive ? '0.4' : '1';
-        warBtn.textContent = gsWarActive ? 'AT WAR' : 'DECLARE WAR';
-    }
-}
-
-// --- Add event to log ---
-function gsAddEvent(msg) {
-    const dateStr = gameTimeDate ? `[${gameTimeDate.year}/${String(gameTimeDate.month).padStart(2,'0')}] ` : '';
-    gsEventLog.push(dateStr + msg);
-    if (gsEventLog.length > 50) gsEventLog.shift();
-}
-
-// Conscription boost is applied inline in performSimulationTick's recruitment section.

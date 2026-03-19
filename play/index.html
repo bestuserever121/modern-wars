@@ -199,10 +199,6 @@
                         <span>PLAY</span>
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </button>
-                    <button id="grand-strategy-btn" class="menu-v2-link" style="background:linear-gradient(135deg,rgba(241,196,15,0.15),rgba(255,71,87,0.15)); border:1px solid rgba(241,196,15,0.3);">
-                        <span>GRAND STRATEGY</span>
-                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                    </button>
                     <div class="nav-separator"></div>
                     <button id="editor-mode-btn" class="menu-v2-link">EDITOR</button>
                     <button id="menu-hub-btn" class="menu-v2-link">EDITOR HUB</button>
@@ -528,7 +524,6 @@
                         <button id="speed-down-btn" class="mini-btn" style="padding: 5px 8px;">&lsaquo;</button>
                         <button id="ff-btn" class="mini-btn" style="min-width: 35px;">1x</button>
                         <button id="speed-up-btn" class="mini-btn" style="padding: 5px 8px;">&rsaquo;</button>
-                        <button id="instant-btn" class="mini-btn" style="background: #8e44ad; font-weight: 900; font-size: 9px; padding: 5px 8px;" title="Instantly simulate the entire war in the background and show the result.">INSTANT</button>
                     </div>
                     <button id="force-peace-btn" class="mini-btn" style="display:none; background: #27ae60;" data-i18n="DIPLOMACY">DIPLOMACY</button>
                 </div>
@@ -552,7 +547,6 @@
                     <button id="random-war-btn" class="mini-btn" style="background: #9b59b6;" data-i18n="RANDOM_WAR_OFF" title="Periodically spawns extra AI wars between random neighboring countries during the simulation.">Random War: OFF</button>
                     <button id="add-side-btn" class="mini-btn" style="background: #8e44ad;" data-i18n="ADD_SIDE" title="Add another faction column so more teams can join this conflict.">+ Side</button>
                     <button id="ffa-toggle-btn" class="mini-btn" style="background: #e67e22;" data-i18n="FFA" title="Free‑for‑all: each side fights everyone else instead of two big alliances.">FFA</button>
-                    <button id="battle-royale-btn" class="mini-btn" style="background: #e74c3c; font-weight: 900; letter-spacing: 1px;" title="Battle Royale: Every country on the map fights for itself. Last one standing wins.">BATTLE ROYALE</button>
                     <button id="minimize-setup-btn" class="mini-btn" style="background: #555; font-size: 14px; padding: 2px 8px;">−</button>
                 </div>
             </div>
@@ -639,12 +633,6 @@
                         <span style="font-size: 12px; color: #ccc;" data-i18n="DISABLE_PUPPETS">DISABLE PUPPETS (NO VASSAL CALL)</span>
                     </label>
                 </div>
-                <div class="option-row" style="margin-top: 5px;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; width: 100%;" title="Zombie Mode: Side A becomes an unstoppable horde — infinite reinforcements, faster units, spreads like infection.">
-                        <input type="checkbox" id="zombie-mode-checkbox" style="width: 18px; height: 18px; accent-color: #2ecc71; cursor: pointer;">
-                        <span style="font-size: 12px; color: #2ecc71; font-weight: 900; letter-spacing: 1px;">☣ ZOMBIE MODE (SIDE A = HORDE)</span>
-                    </label>
-                </div>
                 <div class="option-row" style="margin-top: 5px; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
                     <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; width: 100%;" title="Cinematic mode hides most UI during war and records a video of the conflict to save locally when it ends.">
                         <input type="checkbox" id="cinematic-mode-checkbox" style="width: 18px; height: 18px; accent-color: #f1c40f; cursor: pointer;">
@@ -659,63 +647,6 @@
         </div>
 
         <div id="game-date-display" class="game-date-display" style="display:none;">0000/00/00</div>
-
-        <!-- GRAND STRATEGY PANEL -->
-        <div id="gs-panel" class="setup-panel" style="display:none; max-width:320px; max-height:calc(100vh - 80px); overflow-y:auto;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <img id="gs-flag" width="32" height="20" style="border:1px solid #333; display:none;">
-                <div>
-                    <div id="gs-nation-name" style="font-weight:900; font-size:14px;"></div>
-                    <div id="gs-date-display" style="font-size:11px; color:#ff4757; font-family:monospace;"></div>
-                </div>
-            </div>
-            <div style="margin-bottom:12px; padding:8px; background:rgba(255,255,255,0.03); border-radius:6px;">
-                <div style="font-size:8px; letter-spacing:2px; color:#f1c40f; font-weight:800;">TREASURY</div>
-                <div style="display:flex; justify-content:space-between; align-items:baseline;">
-                    <span id="gs-treasury" style="font-size:20px; font-weight:900; font-family:monospace; color:#f1c40f;">0</span>
-                    <span id="gs-income" style="font-size:11px; color:#2ecc71;">+0/month</span>
-                </div>
-            </div>
-            <div style="margin-bottom:12px;">
-                <div style="font-size:8px; letter-spacing:2px; color:#ff4757; font-weight:800; margin-bottom:6px;">TAXES</div>
-                <div style="display:flex; gap:4px;">
-                    <button class="mini-btn gs-tax-btn" data-tax="low" style="flex:1; font-size:9px; padding:5px;">LOW</button>
-                    <button class="mini-btn gs-tax-btn active" data-tax="medium" style="flex:1; font-size:9px; padding:5px; border:2px solid #fff;">MEDIUM</button>
-                    <button class="mini-btn gs-tax-btn" data-tax="high" style="flex:1; font-size:9px; padding:5px;">HIGH</button>
-                    <button class="mini-btn gs-tax-btn" data-tax="extreme" style="flex:1; font-size:9px; padding:5px; background:#c0392b;">EXTREME</button>
-                </div>
-                <div id="gs-rebellion-bar" style="margin-top:6px; font-size:10px; color:#e74c3c;"></div>
-            </div>
-            <div style="margin-bottom:12px;">
-                <div style="font-size:8px; letter-spacing:2px; color:#ff4757; font-weight:800; margin-bottom:6px;">MILITARY</div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <button class="mini-btn gs-buy-btn" data-action="troops1k" style="font-size:10px; padding:6px;">+1,000 Troops — 100g</button>
-                    <button class="mini-btn gs-buy-btn" data-action="troops10k" style="font-size:10px; padding:6px;">+10,000 Troops — 900g</button>
-                    <button class="mini-btn gs-buy-btn" data-action="silo" style="font-size:10px; padding:6px;">Missile Silo — 2,000g</button>
-                    <button class="mini-btn gs-buy-btn" data-action="airport" style="font-size:10px; padding:6px;">Airport — 1,500g</button>
-                    <button class="mini-btn gs-buy-btn" data-action="jet" style="font-size:10px; padding:6px;">Fighter Jet — 500g</button>
-                </div>
-            </div>
-            <div style="margin-bottom:12px;">
-                <div style="font-size:8px; letter-spacing:2px; color:#ff4757; font-weight:800; margin-bottom:6px;">CONSCRIPTION</div>
-                <button id="gs-conscript-btn" class="mini-btn" style="width:100%; font-size:10px; padding:6px; background:#8e44ad;">
-                    Activate Conscription — 300g
-                </button>
-                <div id="gs-conscript-status" style="display:none; font-size:10px; color:#e67e22; margin-top:4px;">
-                    ACTIVE — +200% Recruitment, -30% Income, +5% Rebellion
-                </div>
-            </div>
-            <div style="margin-bottom:12px;">
-                <div style="font-size:8px; letter-spacing:2px; color:#ff4757; font-weight:800; margin-bottom:6px;">DIPLOMACY</div>
-                <div style="display:flex; gap:4px;">
-                    <button id="gs-declare-war-btn" class="mini-btn" style="flex:1; font-size:10px; padding:6px; background:#c0392b;">DECLARE WAR</button>
-                    <button id="gs-alliance-btn" class="mini-btn" style="flex:1; font-size:10px; padding:6px; background:#2e86de;">ALLIANCE</button>
-                </div>
-                <div id="gs-wars-list" style="margin-top:6px; font-size:10px;"></div>
-                <div id="gs-allies-list" style="margin-top:4px; font-size:10px;"></div>
-            </div>
-            <div id="gs-events" style="font-size:10px; color:#888; max-height:100px; overflow-y:auto;"></div>
-        </div>
 
         <div id="casualty-panel" class="casualty-panel" style="display:none">
             <div class="casualty-title">CASUALTIES</div>
